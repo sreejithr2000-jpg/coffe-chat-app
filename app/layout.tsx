@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: {
@@ -23,6 +24,7 @@ export default function RootLayout({
         <Navbar />
         <main className="container-page py-10">{children}</main>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
