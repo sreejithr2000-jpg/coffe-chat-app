@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npx kill-port 3000 && next dev --port 3000",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
