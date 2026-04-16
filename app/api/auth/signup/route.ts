@@ -38,7 +38,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ userId: user.id }, { status: 201 });
   } catch (error) {
-    console.error("[auth/signup POST]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("AUTH ERROR:", error);
+    return NextResponse.json(
+      {
+        error: "Auth failed",
+        details: error instanceof Error ? error.message : JSON.stringify(error),
+      },
+      { status: 500 }
+    );
   }
 }
