@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
-    if (!userId) { setState("no-user"); return; }
+    if (!userId) { router.replace("/login"); return; }
 
     fetch(`/api/users/${userId}`)
       .then((res) => { if (!res.ok) throw new Error(); return res.json() as Promise<User>; })
@@ -97,15 +97,11 @@ export default function DashboardPage() {
     );
   }
 
-  if (state === "no-user") {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Card padding="lg" className="w-full max-w-sm text-center">
-          <p className="mb-4 text-sm text-neutral-500">No active session found.</p>
-          <Button onClick={() => router.push("/login")} className="w-full">Go to Login</Button>
-        </Card>
-      </div>
-    );
+  if (state === "no-user") return null;
+
+  function handleLogout() {
+    localStorage.removeItem("userId");
+    router.push("/login");
   }
 
   const profile = user?.profile;
@@ -222,6 +218,7 @@ export default function DashboardPage() {
               <Button variant="secondary" size="sm">Manage Availability</Button>
             </Link>
           )}
+          <Button variant="ghost" size="sm" onClick={handleLogout}>Log out</Button>
         </div>
       </div>
 
@@ -463,22 +460,6 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* ── Dev helper ─────────────────────────────────────────────────────── */}
-      <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-4">
-        <p className="mb-3 text-[12px] font-medium text-neutral-500">Development — switch mock user</p>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => { localStorage.removeItem("userId"); router.push("/login"); }}
-          >
-            Switch role
-          </Button>
-          <Link href="/profile/create">
-            <Button variant="ghost" size="sm">Edit profile</Button>
-          </Link>
-        </div>
-      </div>
 
     </div>
   );
