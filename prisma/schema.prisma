@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  SEEKER
+  AUROR
+}
+
+enum Track {
+  SOFTWARE_ENGINEERING
+  HARDWARE_ENGINEERING
+  MECHANICAL_ENGINEERING
+  PRODUCT_MANAGEMENT
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  passwordHash String?
+  role         UserRole @default(SEEKER)
+  createdAt    DateTime @default(now())
+
+  profile           Profile?
+  availabilitySlots AvailabilitySlot[]
+  sentRequests      Request[]          @relation("SeekerRequests")
+  receivedRequests  Request[]          @relation("AurorRequests")
+  seekerBookings    Booking[]          @relation("SeekerBookings")
+  aurorBookings     Booking[]          @relation("AurorBookings")
+  sentMessages      Message[]
+  seekerReviews     Review[]           @relation("SeekerReviews")
+  aurorReviews      Review[]           @relation("AurorReviews")
+
+  @@map("users")
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  name            String
+  headline        String?
+  experienceYears Int      @default(0)
+  primaryTrack    Track?
+  secondaryTracks Track[]
+
+  // ── Both roles ────────────────────────────────────────────────────────────
+  skills          String[]
+  domains         String[]
+
+  // ── Seeker only ───────────────────────────────────────────────────────────
+  targetRoles     String[]
+
+  // ── Auror only ────────────────────────────────────────────────────────────
+  currentRole     String?
+  totalExperience Int      @default(0)
+  sessionTypes    String[]
+  sessionTags     String[]
+
+  // ── Rich profile ─────────────────────────────────────────────────────────
+  overview        String?
+  experience      Json?    // [{company, role, duration}]
+  education       Json?    // [{school, degree, year}]
+  dreamCompanies  String[]
+  dreamRole       String?
+  resumeUrl       String?
+  portfolioLinks  String[]
+
+  // ── Identity extras ──────────────────────────────────────────────────────
+  username        String?  @unique
+  country         String?
+
+  // ── Scheduling ───────────────────────────────────────────────────────────
+  timezone        String   @default("UTC")
+
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model AvailabilitySlot {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime // specific calendar date (UTC midnight)
+  startTime String   // "HH:MM" 24hr
+  endTime   String   // "HH:MM" 24hr
+  validFrom DateTime @default(now())
+  validTo   DateTime // end of slot date; slots past this are hidden
+  createdAt DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests Request[]
+  bookings Booking[]
+
+  @@map("availability_slots")
+}
+
+model Booking {
+  id                 String   @id @default(cuid())
+  requestId          String   @unique
+  seekerId           String
+  aurorId            String
+  availabilitySlotId String
+  status             String   @default("scheduled") // scheduled | completed | cancelled
+  sessionType        String   @default("coffee")    // coffee | mock
+  duration           Int      @default(30)          // minutes
+  scheduledAt        DateTime
+  completedAt        DateTime?
+  meetingLink        String?
+  lastMessageAt      DateTime?
+  seekerLastReadAt   DateTime?
+  aurorLastReadAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  request          Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  seeker           User             @relation("SeekerBookings", fields: [seekerId], references: [id], onDelete: Cascade)
+  auror            User             @relation("AurorBookings", fields: [aurorId], references: [id], onDelete: Cascade)
+  availabilitySlot AvailabilitySlot @relation(fields: [availabilitySlotId], references: [id], onDelete: Cascade)
+  messages         Message[]
+  review           Review?
+
+  @@map("bookings")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  seekerId  String
+  aurorId   String
+  rating    Int
+  attended  Boolean
+  review    String?
+  takeaways String[]
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seeker  User    @relation("SeekerReviews", fields: [seekerId], references: [id], onDelete: Cascade)
+  auror   User    @relation("AurorReviews", fields: [aurorId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  bookingId String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Request {
+  id                 String   @id @default(cuid())
+  seekerId           String
+  aurorId            String
+  availabilitySlotId String
+  status             String   @default("pending") // pending | accepted | rejected | expired
+  questions          String[]
+  sessionType        String   @default("coffee")  // coffee | mock
+  duration           Int      @default(30)        // minutes
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  expiresAt          DateTime
+
+  seeker           User             @relation("SeekerRequests", fields: [seekerId], references: [id], onDelete: Cascade)
+  auror            User             @relation("AurorRequests", fields: [aurorId], references: [id], onDelete: Cascade)
+  availabilitySlot AvailabilitySlot @relation(fields: [availabilitySlotId], references: [id], onDelete: Cascade)
+  booking          Booking?
+
+  @@map("requests")
+}

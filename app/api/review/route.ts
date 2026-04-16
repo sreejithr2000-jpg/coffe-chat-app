@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json()) as {
+      bookingId: string;
+      seekerId: string;
+      rating: number;
+      attended: boolean;
+      review?: string;
+      takeaways?: string[];
+    };
+
+    const { bookingId, seekerId, rating, attended, review: rawReview, takeaways: rawTakeaways } = body;
+    const reviewText = rawReview ? rawReview.trim().slice(0, 500) || null : null;
+    const takeaways = Array.isArray(rawTakeaways)
+      ? rawTakeaways.map((t) => t.trim()).filter((t) => t.length > 0).slice(0, 5)
+      : [];
+
+    if (!bookingId || !seekerId) {
+      return NextResponse.json({ error: "bookingId and seekerId are required" }, { status: 400 });
+    }
+
+    if (typeof rating !== "number" || rating < 1 || rating > 5) {
+      return NextResponse.json({ error: "rating must be an integer between 1 and 5" }, { status: 400 });
+    }
+
+    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+
+    if (!booking) {
+      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    if (booking.seekerId !== seekerId) {
+      return NextResponse.json({ error: "Only the Seeker can submit a review" }, { status: 403 });
+    }
+
+    if (booking.status !== "scheduled") {
+      return NextResponse.json({ error: "Booking is not in scheduled status" }, { status: 409 });
+    }
+
+    const existing = await prisma.review.findUnique({ where: { bookingId } });
+    if (existing) {
+      return NextResponse.json({ error: "Review already submitted for this booking" }, { status: 409 });
+    }
+
+    const now = new Date();
+
+    const [review] = await prisma.$transaction([
+      prisma.review.create({
+        data: {
+          bookingId,
+          seekerId,
+          aurorId: booking.aurorId,
+          rating: Math.round(rating),
+          attended,
+          review: reviewText,
+          takeaways,
+        },
+      }),
+      prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: "completed", completedAt: now },
+      }),
+    ]);
+
+    return NextResponse.json(review, { status: 201 });
+  } catch (error) {
+    console.error("[review POST]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
