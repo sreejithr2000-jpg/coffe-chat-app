@@ -4,13 +4,21 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, Button, Badge } from "@/components/ui";
+import { useToast } from "@/lib/toast-context";
 import { ProfileHoverPreview } from "@/components/ProfileHoverPreview";
 import { TRACK_LABELS } from "@/lib/tracks";
 import { formatSlotDate } from "@/lib/availability";
 import { cn } from "@/lib/utils";
+import {
+  getProfileScore,
+  getProfileChecklist,
+  getMilestoneMessage,
+  getRoleNudge,
+} from "@/lib/profileCompletion";
 import type {
   User,
   Profile,
+  UserRole,
   RequestWithDetails,
   AurorRequestWithDetails,
   BookingWithDetails,
@@ -99,14 +107,14 @@ export default function DashboardPage() {
 
   if (state === "no-user") return null;
 
-  function handleLogout() {
-    localStorage.removeItem("userId");
-    router.push("/login");
-  }
+
 
   const profile = user?.profile;
   const isAuror = user?.role === "AUROR";
   const isSeeker = user?.role === "SEEKER";
+
+  // ── Profile completion score ──────────────────────────────────────────────
+  const completionScore = profile && user ? getProfileScore(profile, user.role) : 0;
 
   // ── Seeker limits — DB-computed via /api/usage ───────────────────────────
   const weeklyUsed        = usage?.weeklyUsed        ?? 0;
@@ -218,9 +226,24 @@ export default function DashboardPage() {
               <Button variant="secondary" size="sm">Manage Availability</Button>
             </Link>
           )}
-          <Button variant="ghost" size="sm" onClick={handleLogout}>Log out</Button>
         </div>
       </div>
+
+      {/* ── Welcome banner (new user — no profile yet) ─────────────────────── */}
+      {!profile && <WelcomeBanner />}
+
+      {/* ── Guidance card (profile set up, no activity yet) ────────────────── */}
+      {profile && isSeeker && upcomingSeekerSessions.length === 0 && pendingSeekerRequests.length === 0 && (
+        <GuidanceCard role="seeker" />
+      )}
+      {profile && isAuror && upcomingAurorSessions.length === 0 && pendingAurorRequests.length === 0 && (
+        <GuidanceCard role="auror" />
+      )}
+
+      {/* ── Profile completion nudge ───────────────────────────────────────── */}
+      {profile && user && completionScore < 100 && (
+        <ProfileCompletionBanner profile={profile} role={user.role} score={completionScore} />
+      )}
 
       {/* ── Row 2: Metric cards ─────────────────────────────────────────────── */}
       <div className={cn(
@@ -258,8 +281,8 @@ export default function DashboardPage() {
               <Section title="Upcoming Sessions" emphasis>
                 {upcomingSeekerSessions.length === 0 ? (
                   <EmptyState
-                    message="No upcoming sessions."
-                    sub="Confirmed bookings will appear here once an Auror accepts your request."
+                    message="No upcoming sessions yet"
+                    sub="Your accepted sessions will appear here."
                   />
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -284,8 +307,8 @@ export default function DashboardPage() {
               <Section title="My Requests">
                 {pendingSeekerRequests.length === 0 ? (
                   <EmptyState
-                    message="No pending requests."
-                    sub="Browse Aurors and send your first session request."
+                    message="No active requests yet"
+                    sub="Your pending booking requests will appear here."
                   />
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -312,7 +335,6 @@ export default function DashboardPage() {
               {!atMonthlyLimit && atWeeklyLimit && (
                 <LimitBanner type="weekly" weeklyLimit={weeklyLimit} hasBonus={hasBonus} />
               )}
-              <ProfileSideCard profile={profile} role="seeker" />
             </div>
           </div>
 
@@ -320,9 +342,7 @@ export default function DashboardPage() {
           {completedSeekerSessions.length > 0 && (
             <Section
               title="Completed Sessions"
-              action={
-                <span className="text-[11px] text-neutral-400">Resets every week</span>
-              }
+              subtitle="Resets every week"
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {completedSeekerSessions.map((bk) => (
@@ -356,7 +376,15 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-3">
               <SectionHeader title="Incoming Requests" emphasis badge={pendingAurorRequests.length} />
               {pendingAurorRequests.length === 0 ? (
-                <EmptyState message="No pending requests." sub="New requests will appear here." />
+                <EmptyState
+                  message="No requests yet"
+                  sub="New booking requests will show here once seekers find your profile."
+                  action={
+                    <Link href="/profile/create">
+                      <Button size="sm" variant="secondary">Edit Profile</Button>
+                    </Link>
+                  }
+                />
               ) : (
                 <div className="flex flex-col gap-3">
                   {pendingAurorRequests.map((req) => (
@@ -380,7 +408,7 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-3">
               <SectionHeader title="Upcoming Sessions" />
               {upcomingAurorSessions.length === 0 ? (
-                <EmptyState message="No upcoming sessions." sub="Sessions appear here once you accept a request." />
+                <EmptyState message="No upcoming sessions yet" sub="Sessions appear here once you accept a request." />
               ) : (
                 <div className="flex flex-col gap-2">
                   {upcomingAurorSessions.map((bk) => (
@@ -438,7 +466,6 @@ export default function DashboardPage() {
                 </div>
               </Card>
 
-              <ProfileSideCard profile={profile} role="auror" />
             </div>
           </div>
 
@@ -446,9 +473,7 @@ export default function DashboardPage() {
           {completedAurorSessions.length > 0 && (
             <Section
               title="Completed Sessions"
-              action={
-                <span className="text-[11px] text-neutral-400">Resets every week</span>
-              }
+              subtitle="Resets every week"
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {completedAurorSessions.map((bk) => (
@@ -461,6 +486,166 @@ export default function DashboardPage() {
       )}
 
 
+    </div>
+  );
+}
+
+// ── WelcomeBanner ─────────────────────────────────────────────────────────────
+
+function WelcomeBanner() {
+  return (
+    <div className="rounded-2xl bg-primary-600 px-6 py-5 text-white">
+      <p className="text-[18px] font-bold">Welcome to CoffeeChat ✨</p>
+      <p className="mt-1 text-[13px] text-primary-100">
+        Let&apos;s get you started. Set up your profile so you can make the most of the platform.
+      </p>
+      <div className="mt-4">
+        <Link href="/profile/create">
+          <button className="rounded-lg bg-white px-4 py-2 text-[13px] font-semibold text-primary-700 transition-colors hover:bg-primary-50">
+            Set up profile
+          </button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── GuidanceCard ──────────────────────────────────────────────────────────────
+
+function GuidanceCard({ role }: { role: "seeker" | "auror" }) {
+  if (role === "seeker") {
+    return (
+      <div className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50 to-white px-6 py-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-primary-500">Get started</p>
+        <h2 className="mt-1 text-[18px] font-bold text-neutral-900">Start your first coffee chat</h2>
+        <p className="mt-1 text-[13px] text-neutral-500">
+          Browse experienced Aurors and book a session to get career guidance.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/aurors">
+            <Button>Browse Aurors</Button>
+          </Link>
+          <Link href="/profile/create">
+            <Button variant="secondary" size="sm">Complete Profile</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50 to-white px-6 py-5">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-primary-500">Get started</p>
+      <h2 className="mt-1 text-[18px] font-bold text-neutral-900">Start mentoring seekers</h2>
+      <p className="mt-1 text-[13px] text-neutral-500">
+        Complete your profile and set your availability so seekers can book sessions with you.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link href="/profile/create">
+          <Button>Edit Profile</Button>
+        </Link>
+        <Link href="/availability">
+          <Button variant="secondary" size="sm">Manage Availability</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── ProfileCompletionBanner ───────────────────────────────────────────────────
+
+function ProfileCompletionBanner({
+  profile,
+  role,
+  score,
+}: {
+  profile: Profile;
+  role: UserRole;
+  score: number;
+}) {
+  const checklist  = getProfileChecklist(profile, role);
+  const missing    = checklist.filter((item) => !item.done);
+  const doneCount  = checklist.length - missing.length;
+  const milestone  = getMilestoneMessage(score);
+  const nudge      = getRoleNudge(role);
+
+  // Bar colour shifts as you progress
+  const barColor =
+    score >= 80 ? "bg-emerald-500" :
+    score >= 50 ? "bg-primary-500" :
+                  "bg-amber-400";
+
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-soft">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[14px] font-bold text-neutral-900">Complete your profile</p>
+            <span className={cn(
+              "rounded-full px-2 py-0.5 text-[11px] font-bold",
+              score >= 80 ? "bg-emerald-100 text-emerald-700" :
+              score >= 50 ? "bg-primary-100 text-primary-700" :
+                            "bg-amber-100 text-amber-700"
+            )}>
+              {score}%
+            </span>
+          </div>
+          <p className="mt-0.5 text-[12px] text-neutral-500">{nudge}</p>
+        </div>
+        <Link href="/profile/create" className="shrink-0">
+          <Button size="sm">Complete Profile</Button>
+        </Link>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", barColor)}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+
+      {/* Milestone message */}
+      {milestone && (
+        <p className={cn(
+          "mt-1.5 text-[12px] font-medium",
+          score >= 80 ? "text-emerald-600" : "text-primary-600"
+        )}>
+          {milestone}
+        </p>
+      )}
+
+      {/* Missing items */}
+      {missing.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-neutral-400">
+            Complete these next
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {missing.slice(0, 4).map((item) => (
+              <span
+                key={item.key}
+                className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600"
+              >
+                <span className="h-3 w-3 shrink-0 rounded-full border border-neutral-300" />
+                {item.label}
+              </span>
+            ))}
+            {missing.length > 4 && (
+              <span className="flex items-center rounded-full border border-neutral-100 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-400">
+                +{missing.length - 4} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Completed count — subtle positive reinforcement */}
+      {doneCount > 0 && missing.length > 0 && (
+        <p className="mt-2.5 text-[11px] text-neutral-400">
+          {doneCount} of {checklist.length} sections done
+        </p>
+      )}
     </div>
   );
 }
@@ -495,11 +680,12 @@ function StatCard({
 
 // ── EmptyState ────────────────────────────────────────────────────────────────
 
-function EmptyState({ message, sub }: { message: string; sub?: string }) {
+function EmptyState({ message, sub, action }: { message: string; sub?: string; action?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-dashed border-neutral-200 px-6 py-8 text-center">
       <p className="text-sm text-neutral-400">{message}</p>
       {sub && <p className="mt-1 text-[12px] text-neutral-400">{sub}</p>}
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }
@@ -613,11 +799,13 @@ function ProfileSideCard({ profile, role }: { profile: Profile | null | undefine
 function Section({
   title,
   emphasis = false,
+  subtitle,
   action,
   children,
 }: {
   title: string;
   emphasis?: boolean;
+  subtitle?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -627,12 +815,17 @@ function Section({
         "flex items-center justify-between",
         emphasis && "border-l-2 border-primary-400 pl-3"
       )}>
-        <h2 className={cn(
-          "font-bold text-neutral-900",
-          emphasis ? "text-[18px]" : "text-[15px]"
-        )}>
-          {title}
-        </h2>
+        <div>
+          <h2 className={cn(
+            "font-bold text-neutral-900",
+            emphasis ? "text-[18px]" : "text-[15px]"
+          )}>
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="mt-0.5 text-[11px] text-neutral-400">{subtitle}</p>
+          )}
+        </div>
         {action}
       </div>
       {children}
@@ -825,7 +1018,10 @@ function RequestRow({
   seekerId?: string;
   onDelete?: (id: string) => void;
 }) {
+  const [showConfirm, setShowConfirm] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  const { show: showToast } = useToast();
+
   const { auror, availabilitySlot, status, expiresAt, sessionType, duration, aurorId } = request;
   const name = auror?.profile?.name ?? "Unknown Auror";
   const expiry = expiryLabel(expiresAt, status);
@@ -840,39 +1036,102 @@ function RequestRow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seekerId }),
       });
-      if (res.ok) onDelete(request.id);
+      if (res.ok) {
+        onDelete(request.id);
+        showToast("Request withdrawn");
+      }
     } finally {
       setWithdrawing(false);
+      setShowConfirm(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-neutral-100 bg-white px-4 py-3 shadow-soft">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <ProfileHoverPreview userId={aurorId}>
-            <p className="text-[13px] font-semibold text-neutral-900 hover:text-primary-600 cursor-pointer transition-colors">{name}</p>
-          </ProfileHoverPreview>
-          <p className="text-[12px] text-neutral-500">{slotLabel(availabilitySlot)}</p>
-          <p className="text-[11px] text-neutral-400">{sessionLabel} · {duration} min</p>
-          {expiry && <p className="text-[11px] text-amber-500">{expiry}</p>}
+    <>
+      <div className="flex flex-col gap-2 rounded-xl border border-neutral-100 bg-white px-4 py-3 shadow-soft transition-shadow hover:shadow-md">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-0.5">
+            <ProfileHoverPreview userId={aurorId}>
+              <p className="text-[13px] font-semibold text-neutral-900 hover:text-primary-600 cursor-pointer transition-colors">{name}</p>
+            </ProfileHoverPreview>
+            <p className="text-[12px] text-neutral-500">{slotLabel(availabilitySlot)}</p>
+            <p className="text-[11px] text-neutral-400">{sessionLabel} · {duration} min</p>
+            {expiry && <p className="text-[11px] text-amber-500">{expiry}</p>}
+          </div>
+          <span className={cn(
+            "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize",
+            REQUEST_STATUS_STYLES[status] ?? REQUEST_STATUS_STYLES.expired
+          )}>
+            {status}
+          </span>
         </div>
-        <span className={cn(
-          "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize",
-          REQUEST_STATUS_STYLES[status] ?? REQUEST_STATUS_STYLES.expired
-        )}>
-          {status}
-        </span>
+        {status === "pending" && onDelete && (
+          <button
+            onClick={() => setShowConfirm(true)}
+            disabled={withdrawing}
+            className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-1.5 text-[11px] font-medium text-neutral-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+          >
+            Withdraw request
+          </button>
+        )}
       </div>
-      {status === "pending" && onDelete && (
-        <button
-          onClick={handleWithdraw}
-          disabled={withdrawing}
-          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-1.5 text-[11px] font-medium text-neutral-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
-        >
-          {withdrawing ? "Withdrawing…" : "Withdraw request"}
-        </button>
+
+      {showConfirm && (
+        <WithdrawConfirmModal
+          aurorName={name}
+          withdrawing={withdrawing}
+          onConfirm={handleWithdraw}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
+    </>
+  );
+}
+
+// ── WithdrawConfirmModal ──────────────────────────────────────────────────────
+
+function WithdrawConfirmModal({
+  aurorName,
+  withdrawing,
+  onConfirm,
+  onCancel,
+}: {
+  aurorName: string;
+  withdrawing: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !withdrawing) onCancel(); }}
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
+        <div className="px-5 pt-5 pb-4">
+          <p className="text-[15px] font-bold text-neutral-900">Withdraw this request?</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-neutral-500">
+            This will cancel your pending request to{" "}
+            <span className="font-medium text-neutral-700">{aurorName}</span>.
+            You can send a new request later.
+          </p>
+        </div>
+        <div className="flex gap-2 border-t border-neutral-100 px-5 py-4">
+          <button
+            onClick={onCancel}
+            disabled={withdrawing}
+            className="flex-1 rounded-lg border border-neutral-200 bg-white py-2 text-[13px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={withdrawing}
+            className="flex-1 rounded-lg bg-red-600 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+          >
+            {withdrawing ? "Withdrawing…" : "Withdraw Request"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -912,7 +1171,7 @@ function BookingRow({
   return (
     <>
     <div className={cn(
-      "flex flex-col gap-2.5 rounded-xl border px-4 py-3 shadow-soft transition-colors",
+      "flex flex-col gap-2.5 rounded-xl border px-4 py-3 shadow-soft transition-all hover:shadow-md",
       status === "cancelled"
         ? "opacity-50 border-neutral-100 bg-neutral-50"
         : status === "completed"
@@ -1424,7 +1683,7 @@ function IncomingRequestCard({
 
   return (
     <div className={cn(
-      "flex flex-col gap-3 rounded-xl border bg-white px-4 py-4 shadow-soft",
+      "flex flex-col gap-3 rounded-xl border bg-white px-4 py-4 shadow-soft transition-shadow hover:shadow-md",
       status === "expired" || status === "rejected" ? "opacity-60 border-neutral-100" : "border-neutral-100"
     )}>
       <div className="flex items-start justify-between gap-2">

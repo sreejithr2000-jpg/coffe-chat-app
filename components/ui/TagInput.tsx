@@ -53,7 +53,11 @@ export function TagInput({
     <div className="flex flex-col gap-1.5">
       {label && (
         <div className="flex items-center justify-between">
-          <span className="text-[13px] font-medium text-neutral-700">{label}</span>
+          <span className="text-[13px] font-medium text-neutral-700">
+            {label.endsWith(" *") ? (
+              <>{label.slice(0, -2)} <span className="text-red-400 text-[11px]">*</span></>
+            ) : label}
+          </span>
           <span className={cn(
             "text-[11px] tabular-nums",
             atMax ? "text-amber-600" : "text-neutral-400"

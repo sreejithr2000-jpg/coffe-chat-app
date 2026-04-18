@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
       targetRoles,
       currentRole, totalExperience, sessionTypes, sessionTags,
       overview, experience, education, dreamCompanies, dreamRole, resumeUrl, portfolioLinks,
+      otherTrackLabel,
     } = body;
 
     if (!userId || !name) {
@@ -40,8 +41,9 @@ export async function POST(request: NextRequest) {
       education: education != null ? (education as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
       dreamCompanies: dreamCompanies ?? [],
       dreamRole: dreamRole ?? null,
-      resumeUrl: resumeUrl ?? null,
-      portfolioLinks: portfolioLinks ?? [],
+      resumeUrl:       resumeUrl ?? null,
+      portfolioLinks:  portfolioLinks ?? [],
+      otherTrackLabel: otherTrackLabel ?? null,
     };
 
     const profile = await prisma.profile.upsert({

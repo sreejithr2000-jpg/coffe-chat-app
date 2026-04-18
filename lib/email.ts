@@ -1,0 +1,36 @@
+import { Resend } from "resend";
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+// Emails to skip in dev/test environments
+const DEV_PATTERNS = ["@test.com", "@dev.local", "@example.com"];
+
+/**
+ * Sends a transactional email via Resend.
+ * Never throws — errors are logged and swallowed.
+ * Silently skips if: no API key, no recipient, or dev/test email address.
+ *
+ * SETUP: set RESEND_API_KEY in your env, and update the `from` address
+ * to a domain you've verified in the Resend dashboard.
+ */
+export async function sendEmail(
+  to: string | null | undefined,
+  subject: string,
+  html: string
+): Promise<void> {
+  try {
+    if (!resend || !to) return;
+    if (DEV_PATTERNS.some((p) => to.includes(p))) return;
+
+    await resend.emails.send({
+      from: process.env.RESEND_FROM ?? "CoffeeChat <onboarding@resend.dev>",
+      to,
+      subject,
+      html,
+    });
+  } catch (err) {
+    console.error("[sendEmail]", err);
+  }
+}

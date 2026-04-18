@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, Button } from "@/components/ui";
+import { useToast } from "@/lib/toast-context";
 import { BackButton } from "@/components/BackButton";
 import {
   formatSlotDate,
@@ -23,8 +24,9 @@ interface AurorStats {
 const MIN_QUESTIONS = 3;
 
 export default function BookingPage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
+  const router  = useRouter();
+  const { show: showToast } = useToast();
+  const params  = useParams<{ id: string }>();
   const aurorId = params.id;
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -115,6 +117,7 @@ export default function BookingPage() {
 
       setSuccessSlotId(slot.id);
       setSelectedSlotId(null);
+      showToast("Request sent!");
       router.push(`/booking/confirmed/${data.id}`);
     } catch {
       setFormError("Something went wrong. Please try again.");
