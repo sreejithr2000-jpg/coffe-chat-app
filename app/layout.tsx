@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Navbar } from "@/components/layout/Navbar";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -21,8 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-white antialiased">
-        <Navbar />
-        <main className="container-page py-10">{children}</main>
+        {children}
         <Analytics />
         <SpeedInsights />
       </body>

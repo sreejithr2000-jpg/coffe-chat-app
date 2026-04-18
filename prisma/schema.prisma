@@ -18,10 +18,18 @@ enum UserRole {
 }
 
 enum Track {
-  SOFTWARE_ENGINEERING
+  BUSINESS_STRATEGY
+  CONSULTING
+  DATA_SCIENCE
+  DESIGN
+  ELECTRICAL_ENGINEERING
+  FINANCE
   HARDWARE_ENGINEERING
+  MARKETING
   MECHANICAL_ENGINEERING
+  OPERATIONS
   PRODUCT_MANAGEMENT
+  SOFTWARE_ENGINEERING
 }
 
 // ---------------------------------------------------------------------------
@@ -44,6 +52,7 @@ model User {
   sentMessages      Message[]
   seekerReviews     Review[]           @relation("SeekerReviews")
   aurorReviews      Review[]           @relation("AurorReviews")
+  notifications     Notification[]
 
   @@map("users")
 }
@@ -71,13 +80,14 @@ model Profile {
   sessionTags     String[]
 
   // ── Rich profile ─────────────────────────────────────────────────────────
-  overview        String?
-  experience      Json?    // [{company, role, duration}]
-  education       Json?    // [{school, degree, year}]
-  dreamCompanies  String[]
-  dreamRole       String?
-  resumeUrl       String?
-  portfolioLinks  String[]
+  overview         String?
+  experience       Json?    // [{company, role, duration}]
+  education        Json?    // [{school, degree, year}]
+  dreamCompanies   String[]
+  dreamRole        String?
+  resumeUrl        String?
+  portfolioLinks   String[]
+  otherTrackLabel  String?  // freeform label when "Other" is selected for secondary track
 
   // ── Identity extras ──────────────────────────────────────────────────────
   username        String?  @unique
@@ -189,4 +199,19 @@ model Request {
   booking          Booking?
 
   @@map("requests")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // REQUEST_RECEIVED | REQUEST_ACCEPTED | REQUEST_REJECTED | SESSION_COMPLETED
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
 }

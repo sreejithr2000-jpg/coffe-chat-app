@@ -5,10 +5,18 @@
 export type UserRole = "SEEKER" | "AUROR";
 
 export type Track =
-  | "SOFTWARE_ENGINEERING"
+  | "BUSINESS_STRATEGY"
+  | "CONSULTING"
+  | "DATA_SCIENCE"
+  | "DESIGN"
+  | "ELECTRICAL_ENGINEERING"
+  | "FINANCE"
   | "HARDWARE_ENGINEERING"
+  | "MARKETING"
   | "MECHANICAL_ENGINEERING"
-  | "PRODUCT_MANAGEMENT";
+  | "OPERATIONS"
+  | "PRODUCT_MANAGEMENT"
+  | "SOFTWARE_ENGINEERING";
 
 export type SessionType = "coffee_chat" | "mock_interview";
 
@@ -115,12 +123,14 @@ export interface ExperienceEntry {
   startYear: string;        // "YYYY"
   endMonth: string | null;  // null = currently working here
   endYear: string | null;
+  description?: string;     // what you did / achieved
 }
 
 export interface EducationEntry {
   school: string;
   degree: string;
   year: string;
+  course?: string;          // field of study (e.g. Computer Science)
 }
 
 export interface Profile {
@@ -146,10 +156,21 @@ export interface Profile {
   dreamRole: string | null;
   resumeUrl: string | null;
   portfolioLinks: string[];
+  otherTrackLabel: string | null;
   // Identity
   username: string | null;
   country: string | null;
   timezone: string;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
   createdAt: string;
 }
 
@@ -200,6 +221,7 @@ export interface CreateProfilePayload {
   dreamRole?: string;
   resumeUrl?: string;
   portfolioLinks?: string[];
+  otherTrackLabel?: string;
 }
 
 export interface CreateSlotPayload {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/lib/toast-context";
 import {
   Card, Button, Input, Select, TagInput, CheckboxGroup, TrackMultiSelect,
 } from "@/components/ui";
@@ -27,13 +28,23 @@ const MONTHS = [
   { value: "11", label: "Nov" }, { value: "12", label: "Dec" },
 ];
 
+const DEGREE_OPTIONS = [
+  { value: "bachelors", label: "Bachelors"              },
+  { value: "masters",   label: "Masters"                },
+  { value: "phd",       label: "PhD"                    },
+  { value: "mba",       label: "MBA"                    },
+  { value: "associate", label: "Associate"              },
+  { value: "diploma",   label: "High School / Diploma"  },
+  { value: "other",     label: "Other"                  },
+];
+
 const CY = new Date().getFullYear();
 const YEARS = Array.from({ length: 50 }, (_, i) => {
   const y = String(CY - i);
   return { value: y, label: y };
 });
 
-const STEP_LABELS = ["Basic info", "Background", "Experience", "Goals"];
+const STEP_LABELS = ["Basic info", "Background", "Experience", "Education", "Goals"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,23 +104,37 @@ interface FormState {
   portfolioLinks: string[];
   // Step 3 — Experience
   experience: ExperienceEntry[];
+  // Step 4 — Education
   education: EducationEntry[];
-  // Step 4 — Goals (role-specific)
+  // Step 5 — Goals (role-specific)
   targetRoles: string[];
   dreamRole: string;
   dreamCompanies: string[];
   sessionTypes: string[];
   sessionTags: string[];
+  // Secondary track "Other"
+  otherTrackSelected: boolean;
+  otherTrackLabel: string;
 }
 
 interface FormErrors {
   name?: string;
+  headline?: string;
+  currentRole?: string;
   primaryTrack?: string;
+  skills?: string;
+  resume?: string;
   resumeFile?: string;
+  // Step 3
+  experience?: string;          // section-level (Auror: requires at least 1)
+  experienceItems?: string[];   // per-entry errors indexed by position
+  // Step 4
+  education?: string;           // section-level (Seeker: requires at least 1)
+  educationItems?: string[];    // per-entry errors indexed by position
 }
 
 const EMPTY_ENTRY: ExperienceEntry = {
-  company: "", role: "", startMonth: "", startYear: "", endMonth: null, endYear: null,
+  company: "", role: "", startMonth: "", startYear: "", endMonth: null, endYear: null, description: "",
 };
 
 const DEFAULT_FORM: FormState = {
@@ -120,12 +145,14 @@ const DEFAULT_FORM: FormState = {
   experience: [], education: [],
   targetRoles: [], dreamRole: "", dreamCompanies: [],
   sessionTypes: [], sessionTags: [],
+  otherTrackSelected: false, otherTrackLabel: "",
 };
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CreateProfilePage() {
   const router = useRouter();
+  const { show: showToast } = useToast();
   const [role, setRole]         = useState<UserRole | null>(null);
   const [userId, setUserId]     = useState<string | null>(null);
   const [step, setStep]         = useState(1);
@@ -152,23 +179,25 @@ export default function CreateProfilePage() {
         if (user.profile) {
           const p = user.profile;
           setForm({
-            name:           p.name,
-            headline:       p.headline ?? "",
-            currentRole:    p.currentRole ?? "",
-            overview:       p.overview ?? "",
-            primaryTrack:   p.primaryTrack ?? "",
+            name:            p.name,
+            headline:        p.headline ?? "",
+            currentRole:     p.currentRole ?? "",
+            overview:        p.overview ?? "",
+            primaryTrack:    p.primaryTrack ?? "",
             secondaryTracks: p.secondaryTracks,
-            skills:         p.skills,
-            domains:        p.domains,
-            resumeUrl:      p.resumeUrl ?? "",
-            portfolioLinks: p.portfolioLinks ?? [],
-            experience:     (p.experience as ExperienceEntry[]) ?? [],
-            education:      (p.education as EducationEntry[]) ?? [],
-            targetRoles:    p.targetRoles,
-            dreamRole:      p.dreamRole ?? "",
-            dreamCompanies: p.dreamCompanies ?? [],
-            sessionTypes:   p.sessionTypes,
-            sessionTags:    p.sessionTags,
+            skills:          p.skills,
+            domains:         p.domains,
+            resumeUrl:       p.resumeUrl ?? "",
+            portfolioLinks:  p.portfolioLinks ?? [],
+            experience:      (p.experience as ExperienceEntry[]) ?? [],
+            education:       (p.education as EducationEntry[]) ?? [],
+            targetRoles:     p.targetRoles,
+            dreamRole:       p.dreamRole ?? "",
+            dreamCompanies:  p.dreamCompanies ?? [],
+            sessionTypes:        p.sessionTypes,
+            sessionTags:         p.sessionTags,
+            otherTrackLabel:     p.otherTrackLabel ?? "",
+            otherTrackSelected:  !!(p.otherTrackLabel),
           });
         }
         setLoadState("ready");
@@ -201,7 +230,7 @@ export default function CreateProfilePage() {
   }
 
   function addEducation() {
-    set("education", [...form.education, { school: "", degree: "", year: "" }]);
+    set("education", [...form.education, { school: "", degree: "", year: "", course: "" }]);
   }
   function updateEducation(i: number, field: keyof EducationEntry, val: string) {
     set("education", form.education.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
@@ -225,14 +254,53 @@ export default function CreateProfilePage() {
 
   function validateStep(): boolean {
     const errs: FormErrors = {};
-    if (step === 1 && !form.name.trim()) errs.name = "Name is required";
-    if (step === 2 && !form.primaryTrack)  errs.primaryTrack = "Please select a primary track";
+
+    if (step === 1) {
+      if (!form.name.trim())        errs.name        = "Full name is required";
+      if (!form.headline.trim())    errs.headline    = "Headline is required";
+      if (!form.currentRole.trim()) errs.currentRole = "Current role is required";
+    }
+
+    if (step === 2) {
+      if (!form.primaryTrack)
+        errs.primaryTrack = "Please select a primary track";
+      if (form.skills.length === 0)
+        errs.skills = "At least one skill is required";
+      if (!form.resumeUrl && !resumeFile)
+        errs.resume = "Please upload a resume or provide a link";
+    }
+
+    if (step === 3) {
+      if (role === "AUROR" && form.experience.length === 0)
+        errs.experience = "Aurors must add at least one experience entry";
+
+      const expItems: string[] = [];
+      form.experience.forEach((exp, i) => {
+        if (!exp.description?.trim()) expItems[i] = "Description is required";
+      });
+      if (expItems.some(Boolean)) errs.experienceItems = expItems;
+    }
+
+    if (step === 4) {
+      if (role === "SEEKER" && form.education.length === 0)
+        errs.education = "Please add at least one education entry";
+
+      const eduItems: string[] = [];
+      form.education.forEach((edu, i) => {
+        const missing: string[] = [];
+        if (!edu.degree?.trim()) missing.push("degree");
+        if (!edu.course?.trim()) missing.push("field of study");
+        if (missing.length) eduItems[i] = `Required: ${missing.join(", ")}`;
+      });
+      if (eduItems.some(Boolean)) errs.educationItems = eduItems;
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
 
   function nextStep() {
-    if (validateStep()) setStep((s) => Math.min(s + 1, 4));
+    if (validateStep()) setStep((s) => Math.min(s + 1, 5));
   }
   function prevStep() {
     setErrors({});
@@ -253,7 +321,7 @@ export default function CreateProfilePage() {
       setErrors((prev) => ({ ...prev, resumeFile: "File must be under 5 MB" }));
       return;
     }
-    setErrors((prev) => ({ ...prev, resumeFile: undefined }));
+    setErrors((prev) => ({ ...prev, resumeFile: undefined, resume: undefined }));
     setResumeFile(file);
     setUploadError(null);
   }
@@ -319,12 +387,16 @@ export default function CreateProfilePage() {
           education:       cleanEducation.length  ? cleanEducation  : null,
           dreamCompanies:  form.dreamCompanies,
           dreamRole:       form.dreamRole.trim() || null,
-          resumeUrl:       finalResumeUrl,
-          portfolioLinks:  cleanPortfolioLinks,
+          resumeUrl:        finalResumeUrl,
+          portfolioLinks:   cleanPortfolioLinks,
+          otherTrackLabel:  form.otherTrackSelected && form.otherTrackLabel.trim()
+                              ? form.otherTrackLabel.trim()
+                              : null,
         }),
       });
       if (!res.ok) throw new Error("Failed to save profile");
-      router.push("/dashboard");
+      showToast("Profile updated successfully");
+      router.push("/profile");
     } catch {
       setServerError("Something went wrong. Please try again.");
       setSubmitting(false);
@@ -341,19 +413,24 @@ export default function CreateProfilePage() {
     );
   }
 
-  const isSeeker  = role === "SEEKER";
-  const isAuror   = role === "AUROR";
-  const totalExp  = calcTotalExperience(form.experience);
+  const isSeeker = role === "SEEKER";
+  const isAuror  = role === "AUROR";
+  const totalExp = calcTotalExperience(form.experience);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex justify-center py-10">
       <div className="w-full max-w-lg">
+        {/* Guidance message */}
+        <p className="mb-4 text-center text-[13px] text-neutral-500">
+          Complete your profile to start booking sessions
+        </p>
+
         <Card padding="lg">
 
           {/* Step indicator */}
-          <StepBar step={step} total={4} labels={STEP_LABELS} />
+          <StepBar step={step} total={5} labels={STEP_LABELS} />
 
           {/* Step content */}
           <div className="flex min-h-[300px] flex-col gap-5">
@@ -370,17 +447,19 @@ export default function CreateProfilePage() {
                   autoFocus
                 />
                 <Input
-                  label="Headline"
+                  label="Headline *"
                   placeholder={isSeeker ? "e.g. Aspiring PM breaking into tech" : "e.g. Senior PM at Series B startup"}
                   value={form.headline}
                   onChange={(e) => set("headline", e.target.value)}
+                  error={errors.headline}
                   hint="A short sentence about your role or goal"
                 />
                 <Input
-                  label="Current role"
+                  label="Current role *"
                   placeholder="e.g. Product Manager at Acme"
                   value={form.currentRole}
                   onChange={(e) => set("currentRole", e.target.value)}
+                  error={errors.currentRole}
                 />
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[13px] font-medium text-neutral-700">Overview</label>
@@ -421,15 +500,23 @@ export default function CreateProfilePage() {
                   disabledTracks={form.primaryTrack ? [form.primaryTrack] : []}
                   max={2}
                   onChange={(tracks) => set("secondaryTracks", tracks)}
+                  showOther
+                  otherSelected={form.otherTrackSelected}
+                  onOtherToggle={() => set("otherTrackSelected", !form.otherTrackSelected)}
+                  otherValue={form.otherTrackLabel}
+                  onOtherChange={(val) => set("otherTrackLabel", val)}
                 />
-                <TagInput
-                  label="Skills"
-                  placeholder="e.g. python, sql, figma…"
-                  value={form.skills}
-                  onChange={(tags) => set("skills", tags)}
-                  max={10}
-                  hint="Press Enter or comma to add · max 10"
-                />
+                <div className="flex flex-col gap-1">
+                  <TagInput
+                    label="Skills *"
+                    placeholder="e.g. python, sql, figma…"
+                    value={form.skills}
+                    onChange={(tags) => { set("skills", tags); if (tags.length > 0) setErrors((p) => ({ ...p, skills: undefined })); }}
+                    max={10}
+                    hint="Press Enter or comma to add · max 10"
+                  />
+                  {errors.skills && <p className="text-[12px] text-red-600">{errors.skills}</p>}
+                </div>
                 <TagInput
                   label="Domains"
                   placeholder="e.g. fintech, healthcare…"
@@ -441,7 +528,9 @@ export default function CreateProfilePage() {
 
                 {/* Resume */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium text-neutral-700">Resume</label>
+                  <label className="text-[13px] font-medium text-neutral-700">
+                    Resume <span className="text-red-400 text-[11px]">*</span>
+                  </label>
                   {form.resumeUrl && !resumeFile && (
                     <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
                       <a href={form.resumeUrl} target="_blank" rel="noopener noreferrer"
@@ -456,7 +545,9 @@ export default function CreateProfilePage() {
                   )}
                   <label className={cn(
                     "flex cursor-pointer items-center gap-2.5 rounded-lg border-2 border-dashed px-4 py-3 transition-colors",
-                    resumeFile ? "border-emerald-300 bg-emerald-50" : "border-neutral-200 bg-neutral-50 hover:border-neutral-300",
+                    resumeFile ? "border-emerald-300 bg-emerald-50" :
+                    errors.resume ? "border-red-300 bg-red-50" :
+                    "border-neutral-200 bg-neutral-50 hover:border-neutral-300",
                     uploading && "cursor-not-allowed opacity-50"
                   )}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0 text-neutral-400">
@@ -467,7 +558,8 @@ export default function CreateProfilePage() {
                   </label>
                   <p className="text-[11px] text-neutral-400">PDF, DOC, or DOCX · max 5 MB</p>
                   {errors.resumeFile && <p className="text-[12px] text-red-600">{errors.resumeFile}</p>}
-                  {uploadError && <p className="text-[12px] text-red-600">{uploadError}</p>}
+                  {errors.resume    && <p className="text-[12px] text-red-600">{errors.resume}</p>}
+                  {uploadError      && <p className="text-[12px] text-red-600">{uploadError}</p>}
                 </div>
 
                 {/* Portfolio links */}
@@ -504,125 +596,193 @@ export default function CreateProfilePage() {
               </>
             )}
 
-            {/* ── Step 3: Experience & Education ─────────────────────────── */}
+            {/* ── Step 3: Experience ─────────────────────────────────────── */}
             {step === 3 && (
-              <>
-                {/* Experience */}
-                <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
                   <SectionDivider title="Experience" />
-                  {form.experience.map((exp, i) => {
-                    const isCurrent = exp.endYear === null && exp.endMonth === null;
-                    const dur = calcEntryDuration(exp);
-                    return (
-                      <div key={i} className="flex flex-col gap-3 rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-semibold text-neutral-400">
-                            Entry {i + 1}{dur ? ` · ${dur}` : ""}
-                          </p>
-                          <button type="button" onClick={() => removeExperience(i)}
-                            className="text-[11px] text-neutral-400 hover:text-red-500 transition-colors">
-                            Remove
-                          </button>
-                        </div>
+                </div>
 
-                        {/* Role + Company */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input label="Role" placeholder="e.g. PM" value={exp.role}
-                            onChange={(e) => updateExperience(i, { role: e.target.value })} />
-                          <Input label="Company" placeholder="e.g. Acme" value={exp.company}
-                            onChange={(e) => updateExperience(i, { company: e.target.value })} />
-                        </div>
+                {isAuror && form.experience.length === 0 && !errors.experience && (
+                  <p className="text-[12px] text-neutral-500">
+                    Add at least one experience entry to continue.
+                  </p>
+                )}
+                {errors.experience && (
+                  <p className="text-[12px] text-red-600">{errors.experience}</p>
+                )}
 
-                        {/* Dates */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="flex flex-col gap-1.5">
-                            <span className="text-[12px] font-medium text-neutral-600">Start</span>
+                {form.experience.map((exp, i) => {
+                  const isCurrent = exp.endYear === null && exp.endMonth === null;
+                  const dur = calcEntryDuration(exp);
+                  const entryErr = errors.experienceItems?.[i];
+                  return (
+                    <div key={i} className={cn(
+                      "flex flex-col gap-3 rounded-xl border bg-neutral-50 px-3 py-3",
+                      entryErr ? "border-red-200" : "border-neutral-100"
+                    )}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-semibold text-neutral-400">
+                          Entry {i + 1}{dur ? ` · ${dur}` : ""}
+                        </p>
+                        <button type="button" onClick={() => removeExperience(i)}
+                          className="text-[11px] text-neutral-400 hover:text-red-500 transition-colors">
+                          Remove
+                        </button>
+                      </div>
+
+                      {/* Role + Company */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input label="Role" placeholder="e.g. PM" value={exp.role}
+                          onChange={(e) => updateExperience(i, { role: e.target.value })} />
+                        <Input label="Company" placeholder="e.g. Acme" value={exp.company}
+                          onChange={(e) => updateExperience(i, { company: e.target.value })} />
+                      </div>
+
+                      {/* Dates */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-[12px] font-medium text-neutral-600">Start</span>
+                          <div className="flex gap-1.5">
+                            <Select
+                              placeholder="Month"
+                              options={MONTHS}
+                              value={exp.startMonth ?? ""}
+                              onChange={(e) => updateExperience(i, { startMonth: e.target.value })}
+                              className="flex-1"
+                            />
+                            <div className="w-[72px]">
+                              <Input
+                                placeholder="Year"
+                                value={exp.startYear ?? ""}
+                                onChange={(e) => updateExperience(i, { startYear: e.target.value })}
+                                maxLength={4}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-[12px] font-medium text-neutral-600">End</span>
+                          {isCurrent ? (
+                            <p className="flex h-9 items-center text-[13px] font-medium text-emerald-600">
+                              Present
+                            </p>
+                          ) : (
                             <div className="flex gap-1.5">
                               <Select
                                 placeholder="Month"
                                 options={MONTHS}
-                                value={exp.startMonth ?? ""}
-                                onChange={(e) => updateExperience(i, { startMonth: e.target.value })}
+                                value={exp.endMonth ?? ""}
+                                onChange={(e) => updateExperience(i, { endMonth: e.target.value || null })}
                                 className="flex-1"
                               />
                               <div className="w-[72px]">
                                 <Input
                                   placeholder="Year"
-                                  value={exp.startYear ?? ""}
-                                  onChange={(e) => updateExperience(i, { startYear: e.target.value })}
+                                  value={exp.endYear ?? ""}
+                                  onChange={(e) => updateExperience(i, { endYear: e.target.value || null })}
                                   maxLength={4}
                                 />
                               </div>
                             </div>
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <span className="text-[12px] font-medium text-neutral-600">End</span>
-                            {isCurrent ? (
-                              <p className="flex h-9 items-center text-[13px] font-medium text-emerald-600">
-                                Present
-                              </p>
-                            ) : (
-                              <div className="flex gap-1.5">
-                                <Select
-                                  placeholder="Month"
-                                  options={MONTHS}
-                                  value={exp.endMonth ?? ""}
-                                  onChange={(e) => updateExperience(i, { endMonth: e.target.value || null })}
-                                  className="flex-1"
-                                />
-                                <div className="w-[72px]">
-                                  <Input
-                                    placeholder="Year"
-                                    value={exp.endYear ?? ""}
-                                    onChange={(e) => updateExperience(i, { endYear: e.target.value || null })}
-                                    maxLength={4}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
-
-                        {/* Currently working toggle */}
-                        <label className="flex cursor-pointer items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={isCurrent}
-                            onChange={(e) =>
-                              updateExperience(i, e.target.checked
-                                ? { endMonth: null, endYear: null }
-                                : { endMonth: "", endYear: "" }
-                              )
-                            }
-                            className="h-3.5 w-3.5 rounded border-neutral-300 text-primary-600 accent-primary-600"
-                          />
-                          <span className="text-[12px] text-neutral-500">Currently working here</span>
-                        </label>
                       </div>
-                    );
-                  })}
 
-                  <button type="button" onClick={addExperience}
-                    disabled={form.experience.length >= 6}
-                    className="rounded-lg border border-dashed border-neutral-200 py-2 text-[12px] font-medium text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40">
-                    + Add experience
-                  </button>
+                      {/* Currently working toggle */}
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isCurrent}
+                          onChange={(e) =>
+                            updateExperience(i, e.target.checked
+                              ? { endMonth: null, endYear: null }
+                              : { endMonth: "", endYear: "" }
+                            )
+                          }
+                          className="h-3.5 w-3.5 rounded border-neutral-300 text-primary-600 accent-primary-600"
+                        />
+                        <span className="text-[12px] text-neutral-500">Currently working here</span>
+                      </label>
 
-                  {totalExp > 0 && (
-                    <div className="flex items-center gap-1.5 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2">
-                      <span className="text-[12px] font-semibold text-primary-700">
-                        Total: {totalExp} yr{totalExp !== 1 ? "s" : ""}
-                      </span>
-                      <span className="text-[11px] text-primary-400">(auto-calculated)</span>
+                      {/* Description */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[12px] font-medium text-neutral-600">
+                          Description <span className="text-red-400 text-[11px]">*</span>
+                        </label>
+                        <textarea
+                          placeholder="What did you do and achieve in this role?"
+                          value={exp.description ?? ""}
+                          onChange={(e) => {
+                            updateExperience(i, { description: e.target.value });
+                            if (e.target.value.trim() && errors.experienceItems) {
+                              setErrors((prev) => {
+                                const items = [...(prev.experienceItems ?? [])];
+                                items[i] = "";
+                                return { ...prev, experienceItems: items.some(Boolean) ? items : undefined };
+                              });
+                            }
+                          }}
+                          rows={3}
+                          maxLength={400}
+                          className={cn(
+                            "w-full resize-none rounded-lg border px-3 py-2 bg-white",
+                            "text-[13px] text-neutral-900 placeholder:text-neutral-400",
+                            "focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100",
+                            entryErr ? "border-red-300" : "border-neutral-200"
+                          )}
+                        />
+                        {entryErr
+                          ? <p className="text-[12px] text-red-600">{entryErr}</p>
+                          : <p className="text-[11px] text-neutral-400">{exp.description?.length ?? 0}/400</p>
+                        }
+                      </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
 
-                {/* Education */}
-                <div className="flex flex-col gap-3">
-                  <SectionDivider title="Education" />
-                  {form.education.map((edu, i) => (
-                    <div key={i} className="flex flex-col gap-2 rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-3">
+                <button type="button" onClick={addExperience}
+                  disabled={form.experience.length >= 6}
+                  className="rounded-lg border border-dashed border-neutral-200 py-2 text-[12px] font-medium text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40">
+                  + Add experience
+                </button>
+
+                {totalExp > 0 && (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2">
+                    <span className="text-[12px] font-semibold text-primary-700">
+                      Total: {totalExp} yr{totalExp !== 1 ? "s" : ""}
+                    </span>
+                    <span className="text-[11px] text-primary-400">(auto-calculated)</span>
+                  </div>
+                )}
+
+                {isSeeker && (
+                  <p className="text-[11px] text-neutral-400">Experience is optional for Seekers.</p>
+                )}
+              </div>
+            )}
+
+            {/* ── Step 4: Education ──────────────────────────────────────── */}
+            {step === 4 && (
+              <div className="flex flex-col gap-3">
+                <SectionDivider title="Education" />
+
+                {isSeeker && form.education.length === 0 && !errors.education && (
+                  <p className="text-[12px] text-neutral-500">
+                    Add at least one education entry to continue.
+                  </p>
+                )}
+                {errors.education && (
+                  <p className="text-[12px] text-red-600">{errors.education}</p>
+                )}
+
+                {form.education.map((edu, i) => {
+                  const entryErr = errors.educationItems?.[i];
+                  return (
+                    <div key={i} className={cn(
+                      "flex flex-col gap-2 rounded-xl border bg-neutral-50 px-3 py-3",
+                      entryErr ? "border-red-200" : "border-neutral-100"
+                    )}>
                       <div className="flex items-center justify-between">
                         <p className="text-[11px] font-semibold text-neutral-400">Entry {i + 1}</p>
                         <button type="button" onClick={() => removeEducation(i)}
@@ -630,27 +790,51 @@ export default function CreateProfilePage() {
                           Remove
                         </button>
                       </div>
+
+                      {/* Degree + Course */}
                       <div className="grid grid-cols-2 gap-2">
-                        <Input label="School" placeholder="e.g. UC Berkeley" value={edu.school}
+                        <Select
+                          label="Degree *"
+                          placeholder="Select…"
+                          options={DEGREE_OPTIONS}
+                          value={edu.degree ?? ""}
+                          onChange={(e) => updateEducation(i, "degree", e.target.value)}
+                        />
+                        <Input
+                          label="Field of study *"
+                          placeholder="e.g. Computer Science"
+                          value={edu.course ?? ""}
+                          onChange={(e) => updateEducation(i, "course", e.target.value)}
+                        />
+                      </div>
+
+                      {/* Institution + Year */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input label="Institution" placeholder="e.g. UC Berkeley" value={edu.school}
                           onChange={(e) => updateEducation(i, "school", e.target.value)} />
                         <Input label="Year" placeholder="e.g. 2022" value={edu.year}
                           onChange={(e) => updateEducation(i, "year", e.target.value)} />
                       </div>
-                      <Input label="Degree" placeholder="e.g. B.S. Computer Science" value={edu.degree}
-                        onChange={(e) => updateEducation(i, "degree", e.target.value)} />
+
+                      {entryErr && <p className="text-[12px] text-red-600">{entryErr}</p>}
                     </div>
-                  ))}
-                  <button type="button" onClick={addEducation}
-                    disabled={form.education.length >= 4}
-                    className="rounded-lg border border-dashed border-neutral-200 py-2 text-[12px] font-medium text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40">
-                    + Add education
-                  </button>
-                </div>
-              </>
+                  );
+                })}
+
+                <button type="button" onClick={addEducation}
+                  disabled={form.education.length >= 4}
+                  className="rounded-lg border border-dashed border-neutral-200 py-2 text-[12px] font-medium text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40">
+                  + Add education
+                </button>
+
+                {isAuror && (
+                  <p className="text-[11px] text-neutral-400">Education is optional for Aurors.</p>
+                )}
+              </div>
             )}
 
-            {/* ── Step 4: Goals (role-specific) ──────────────────────────── */}
-            {step === 4 && (
+            {/* ── Step 5: Goals (role-specific) ──────────────────────────── */}
+            {step === 5 && (
               <>
                 {isSeeker && (
                   <>
@@ -702,14 +886,23 @@ export default function CreateProfilePage() {
             )}
           </div>
 
+          {/* Required fields note */}
+          {step < 5 && (
+            <p className="mt-3 text-[11px] text-neutral-400">
+              Fields marked with{" "}
+              <span className="text-red-400 font-medium">*</span>{" "}
+              are required to complete your profile ✨
+            </p>
+          )}
+
           {/* Navigation */}
-          <div className="mt-6 flex items-center gap-3 border-t border-neutral-100 pt-5">
+          <div className="mt-4 flex items-center gap-3 border-t border-neutral-100 pt-5">
             {step > 1 && (
               <Button type="button" variant="secondary" onClick={prevStep} disabled={submitting || uploading}>
                 Back
               </Button>
             )}
-            {step < 4 ? (
+            {step < 5 ? (
               <Button type="button" className="flex-1" onClick={nextStep}>
                 Continue
               </Button>
@@ -729,8 +922,10 @@ export default function CreateProfilePage() {
 // ── StepBar ───────────────────────────────────────────────────────────────────
 
 function StepBar({ step, total, labels }: { step: number; total: number; labels: string[] }) {
+  const pct = Math.round((step / total) * 100);
   return (
     <div className="mb-6">
+      {/* Numbered step circles */}
       <div className="flex items-center">
         {Array.from({ length: total }, (_, i) => (
           <React.Fragment key={i}>
@@ -755,8 +950,21 @@ function StepBar({ step, total, labels }: { step: number; total: number; labels:
           </React.Fragment>
         ))}
       </div>
-      <p className="mt-2.5 text-[16px] font-bold text-neutral-900">{labels[step - 1]}</p>
+
+      {/* Step label + completion % */}
+      <div className="mt-2.5 flex items-baseline justify-between">
+        <p className="text-[16px] font-bold text-neutral-900">{labels[step - 1]}</p>
+        <span className="text-[11px] font-semibold text-primary-600">{pct}% complete</span>
+      </div>
       <p className="text-[12px] text-neutral-400">Step {step} of {total}</p>
+
+      {/* Progress bar */}
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+        <div
+          className="h-full rounded-full bg-primary-500 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }

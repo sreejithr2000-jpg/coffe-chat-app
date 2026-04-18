@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateMeetingLink } from "@/lib/meeting";
+import { createNotification } from "@/lib/notifications";
+import { sendEmail } from "@/lib/email";
 
 export async function GET(
   _request: NextRequest,
@@ -137,6 +139,35 @@ export async function PATCH(
           meetingLink: generateMeetingLink(),
         },
       });
+    }
+
+    // ── Notifications + email ─────────────────────────────────────────────────
+    const aurorProfile = await prisma.profile.findUnique({ where: { userId: aurorId } });
+    const aurorName    = aurorProfile?.name ?? "Your Auror";
+
+    if (newStatus === "accepted") {
+      await createNotification(
+        req.seekerId,
+        "Request accepted 🎉",
+        `${aurorName} accepted your request. Your session is confirmed.`,
+        "REQUEST_ACCEPTED"
+      );
+      const seeker = await prisma.user.findUnique({ where: { id: req.seekerId } });
+      sendEmail(
+        seeker?.email,
+        "Your session request was accepted",
+        `<p>Great news! <strong>${aurorName}</strong> accepted your session request.</p>
+         <p>Log in to CoffeeChat to view your upcoming session.</p>`
+      ).catch(() => {});
+    }
+
+    if (newStatus === "rejected") {
+      await createNotification(
+        req.seekerId,
+        "Request not accepted",
+        `${aurorName} was unable to accept your request this time.`,
+        "REQUEST_REJECTED"
+      );
     }
 
     return NextResponse.json(updated);

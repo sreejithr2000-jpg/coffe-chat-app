@@ -25,7 +25,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             htmlFor={inputId}
             className="text-[13px] font-medium text-neutral-700"
           >
-            {label}
+            {label.endsWith(" *") ? (
+              <>{label.slice(0, -2)} <span className="text-red-400 text-[11px]">*</span></>
+            ) : label}
           </label>
         )}
 

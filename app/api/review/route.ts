@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
+import { sendEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,6 +66,23 @@ export async function POST(request: NextRequest) {
         data: { status: "completed", completedAt: now },
       }),
     ]);
+
+    // ── Notify Auror + email Seeker ───────────────────────────────────────────
+    const seekerProfile = await prisma.profile.findUnique({ where: { userId: seekerId } });
+    const seekerName    = seekerProfile?.name ?? "Your seeker";
+    await createNotification(
+      booking.aurorId,
+      "Session completed",
+      `${seekerName} marked their session with you as complete.`,
+      "SESSION_COMPLETED"
+    );
+    const seeker = await prisma.user.findUnique({ where: { id: seekerId } });
+    sendEmail(
+      seeker?.email,
+      "Session complete — thanks for using CoffeeChat!",
+      `<p>Your session has been marked as complete. Thanks for using CoffeeChat!</p>
+       <p>We hope it was a great experience. Keep going! ✨</p>`
+    ).catch(() => {});
 
     return NextResponse.json(review, { status: 201 });
   } catch (error) {

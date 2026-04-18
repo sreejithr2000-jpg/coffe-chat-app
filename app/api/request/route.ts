@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkRequestLimit } from "@/lib/requestLimits";
 import { getBookingWindow, slotMinutes, DURATION_OPTIONS } from "@/lib/availability";
+import { createNotification } from "@/lib/notifications";
 import type { CreateRequestPayload } from "@/types";
 
 const VALID_SESSION_TYPES = ["coffee", "mock"] as const;
@@ -152,6 +153,17 @@ export async function POST(request: NextRequest) {
         expiresAt,
       },
     });
+
+    // Notify the Auror of the new incoming request (non-blocking)
+    const seekerProfile = await prisma.profile.findUnique({ where: { userId: seekerId } });
+    const seekerName = seekerProfile?.name ?? "A seeker";
+    const sessionLabel = sessionType === "coffee" ? "coffee chat" : "mock interview";
+    await createNotification(
+      aurorId,
+      "New session request",
+      `${seekerName} wants to book a ${sessionLabel} with you.`,
+      "REQUEST_RECEIVED"
+    );
 
     return NextResponse.json(req, { status: 201 });
   } catch (error) {
