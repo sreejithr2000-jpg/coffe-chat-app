@@ -8,9 +8,8 @@ export async function GET() {
       include: {
         profile: true,
         aurorReviews: { select: { rating: true } },
-        aurorBookings: {
-          where: { status: "completed" },
-          select: { id: true },
+        _count: {
+          select: { aurorBookings: { where: { status: "completed" } } },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -28,7 +27,7 @@ export async function GET() {
         profile: auror.profile,
         rating: avgRating ? parseFloat(avgRating.toFixed(1)) : null,
         reviewCount: reviews.length,
-        completedSessions: auror.aurorBookings.length,
+        completedSessions: auror._count.aurorBookings,
       };
     });
 

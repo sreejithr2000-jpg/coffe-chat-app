@@ -21,16 +21,29 @@ export async function sendEmail(
   html: string
 ): Promise<void> {
   try {
-    if (!resend || !to) return;
-    if (DEV_PATTERNS.some((p) => to.includes(p))) return;
+    if (!resend) {
+      console.warn("[sendEmail] SKIPPED — RESEND_API_KEY is not set");
+      return;
+    }
+    if (!to) {
+      console.warn("[sendEmail] SKIPPED — recipient email is null/undefined");
+      return;
+    }
+    if (DEV_PATTERNS.some((p) => to.includes(p))) {
+      console.log(`[sendEmail] SKIPPED — dev/test address: ${to}`);
+      return;
+    }
 
-    await resend.emails.send({
-      from: process.env.RESEND_FROM ?? "CoffeeChat <onboarding@resend.dev>",
+    const result = await resend.emails.send({
+      from: process.env.RESEND_FROM ?? "Lumora <onboarding@resend.dev>",
       to,
       subject,
       html,
     });
+    if (result.error) {
+      console.error("[sendEmail] Resend error:", result.error);
+    }
   } catch (err) {
-    console.error("[sendEmail]", err);
+    console.error("[sendEmail] ERROR:", err);
   }
 }

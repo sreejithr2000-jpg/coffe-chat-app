@@ -42,6 +42,15 @@ export interface AvailabilitySlot {
   createdAt: string;
 }
 
+export type SlotStatus = "available" | "pending" | "accepted";
+
+/** Enriched slot returned by GET /api/availability/[id]?seekerId=xxx */
+export interface EnrichedSlot extends AvailabilitySlot {
+  slotStatus: SlotStatus;
+  /** true when the currently-logged-in seeker is the one who placed the active request */
+  isMyRequest: boolean;
+}
+
 export interface Request {
   id: string;
   seekerId: string;
@@ -84,6 +93,7 @@ export interface Review {
   attended: boolean;
   review: string | null;
   takeaways: string[];
+  displayMode: string;  // "anonymous" | "first_name" | "full_name"
   createdAt: string;
 }
 

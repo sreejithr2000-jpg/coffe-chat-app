@@ -6,7 +6,65 @@ import Link from "next/link";
 import { Card, Button, Badge } from "@/components/ui";
 import { BackButton } from "@/components/BackButton";
 import { TRACK_LABELS } from "@/lib/tracks";
+import { cn } from "@/lib/utils";
 import type { User, UserRole, ExperienceEntry, EducationEntry } from "@/types";
+
+function NotifyMeButton({ aurorId, seekerId }: { aurorId: string; seekerId: string }) {
+  const [subscribed, setSubscribed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!seekerId) { setLoading(false); return; }
+    fetch(`/api/watchlist/${seekerId}`)
+      .then((r) => r.json() as Promise<string[]>)
+      .then((ids) => setSubscribed(ids.includes(aurorId)))
+      .finally(() => setLoading(false));
+  }, [aurorId, seekerId]);
+
+  async function toggle() {
+    if (!seekerId || loading) return;
+    const next = !subscribed;
+    setSubscribed(next);
+    await fetch("/api/watchlist", {
+      method: next ? "POST" : "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seekerId, aurorId }),
+    });
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={loading || !seekerId}
+      title={subscribed ? "Stop notifications" : "Notify me when new slots open"}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+        subscribed
+          ? "border-primary-300 bg-primary-50 text-primary-700"
+          : "border-neutral-200 bg-white text-neutral-600 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
+      )}
+    >
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M7 1.5C7 1.5 4 3 4 7v2.5H3l-.5 1H11.5l-.5-1H10V7c0-4-3-5.5-3-5.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+        <path d="M5.5 10.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.2"/>
+      </svg>
+      {subscribed ? "✓ You'll be notified" : "Notify Me"}
+    </button>
+  );
+}
+
+interface AurorStats {
+  completedSessions: number;
+  avgRating: number | null;
+  reviewCount: number;
+}
+
+interface ReviewItem {
+  id: string;
+  rating: number;
+  review: string | null;
+  createdAt: string;
+}
 
 export default function AurorProfilePage() {
   const params = useParams<{ id: string }>();
@@ -15,6 +73,8 @@ export default function AurorProfilePage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [auror, setAuror] = useState<User | null>(null);
+  const [stats, setStats] = useState<AurorStats | null>(null);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready">("loading");
 
   useEffect(() => {
@@ -22,13 +82,25 @@ export default function AurorProfilePage() {
     setCurrentUserId(id);
 
     const aurorFetch = fetch(`/api/users/${aurorId}`).then((r) => r.json() as Promise<User>);
+    const statsFetch = fetch(`/api/profile/${aurorId}`).then((r) => r.json());
+    const reviewsFetch = fetch(`/api/reviews/auror/${aurorId}`).then((r) => r.json());
     const userFetch = id
       ? fetch(`/api/users/${id}`).then((r) => r.json() as Promise<User>)
       : Promise.resolve(null);
 
-    Promise.all([aurorFetch, userFetch])
-      .then(([aurorData, userData]) => {
+    Promise.all([aurorFetch, statsFetch, reviewsFetch, userFetch])
+      .then(([aurorData, statsData, reviewsData, userData]) => {
         setAuror(aurorData);
+        if (statsData && !statsData.error) {
+          setStats({
+            completedSessions: statsData.completedSessions ?? 0,
+            avgRating: statsData.avgRating ?? null,
+            reviewCount: (statsData.ratings as number[] | undefined)?.length ?? 0,
+          });
+        }
+        if (Array.isArray(reviewsData)) {
+          setReviews((reviewsData as ReviewItem[]).filter((r) => r.review));
+        }
         if (userData) setCurrentRole(userData.role);
         setLoadState("ready");
       })
@@ -65,9 +137,12 @@ export default function AurorProfilePage() {
       <div className="flex items-center justify-between">
         <BackButton fallback="/aurors" label="Back to Aurors" />
         {isSeeker && (
-          <Link href={`/book/${aurorId}`}>
-            <Button size="sm">Book Session</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <NotifyMeButton aurorId={aurorId} seekerId={currentUserId ?? ""} />
+            <Link href={`/book/${aurorId}`}>
+              <Button size="sm">Book Session</Button>
+            </Link>
+          </div>
         )}
       </div>
 
@@ -114,6 +189,32 @@ export default function AurorProfilePage() {
                     {TRACK_LABELS[t]}
                   </span>
                 ))}
+              </div>
+            )}
+
+            {/* Stats row */}
+            {stats && (stats.avgRating !== null || stats.completedSessions > 0) && (
+              <div className="flex items-center gap-3 border-t border-neutral-100 pt-2">
+                {stats.avgRating !== null && (
+                  <span className="flex items-center gap-1 text-[12px] font-semibold text-amber-500">
+                    ★ {stats.avgRating.toFixed(1)}
+                    {stats.reviewCount > 0 && (
+                      <span className="font-normal text-neutral-400">
+                        ({stats.reviewCount} review{stats.reviewCount === 1 ? "" : "s"})
+                      </span>
+                    )}
+                  </span>
+                )}
+                {stats.completedSessions > 0 && (
+                  <>
+                    {stats.avgRating !== null && (
+                      <span className="text-neutral-200">·</span>
+                    )}
+                    <span className="text-[12px] text-neutral-500">
+                      {stats.completedSessions} session{stats.completedSessions === 1 ? "" : "s"} completed
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -220,6 +321,31 @@ export default function AurorProfilePage() {
                 </svg>
                 Portfolio {(profile.portfolioLinks?.length ?? 0) > 1 ? i + 1 : ""}
               </a>
+            ))}
+          </div>
+        </ProfileSection>
+      )}
+
+      {/* ── Reviews ───────────────────────────────────────────────────────── */}
+      {reviews.length > 0 && (
+        <ProfileSection title={`Reviews (${stats?.reviewCount ?? reviews.length})`}>
+          <div className="flex flex-col gap-4">
+            {reviews.slice(0, 3).map((r) => (
+              <div key={r.id} className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold text-amber-500">
+                    {"★".repeat(r.rating)}
+                    <span className="text-neutral-200">{"★".repeat(5 - r.rating)}</span>
+                  </span>
+                  <span className="text-[11px] text-neutral-400">
+                    {new Date(r.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-700">{r.review}</p>
+              </div>
             ))}
           </div>
         </ProfileSection>

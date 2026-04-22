@@ -5,11 +5,11 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: {
-    default: "CoffeeChat — Connect with Mentors",
-    template: "%s · CoffeeChat",
+    default: "Lumora — Grow with Real Mentors",
+    template: "%s · Lumora",
   },
   description:
-    "Book coffee chats and mock interviews with experienced mentors (Aurors) who help you grow.",
+    "Book focused career sessions with experienced professionals. Clarity, momentum, and real guidance — not generic advice.",
 };
 
 export default function RootLayout({

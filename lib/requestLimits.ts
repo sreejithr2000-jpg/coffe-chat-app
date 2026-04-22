@@ -39,12 +39,24 @@ export async function checkRequestLimit(seekerId: string): Promise<LimitCheck> {
   const lastWeek = weekBounds(now, -1);
   const thisMonth = monthBounds(now);
 
+  // Rejected and expired requests don't consume quota — seekers should get their
+  // slot back. Withdrawn requests are deleted from DB so they're auto-excluded.
+  const RESTORED_STATUSES = ["rejected", "expired"];
+
   const [weeklyUsed, monthlyUsed, prevWeekCompleted] = await Promise.all([
     prisma.request.count({
-      where: { seekerId, createdAt: { gte: thisWeek.start, lt: thisWeek.end } },
+      where: {
+        seekerId,
+        createdAt: { gte: thisWeek.start, lt: thisWeek.end },
+        status: { notIn: RESTORED_STATUSES },
+      },
     }),
     prisma.request.count({
-      where: { seekerId, createdAt: { gte: thisMonth.start, lt: thisMonth.end } },
+      where: {
+        seekerId,
+        createdAt: { gte: thisMonth.start, lt: thisMonth.end },
+        status: { notIn: RESTORED_STATUSES },
+      },
     }),
     prisma.booking.count({
       where: {

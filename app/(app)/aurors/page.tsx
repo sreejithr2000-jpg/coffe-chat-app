@@ -7,6 +7,53 @@ import { TRACK_LABELS } from "@/lib/tracks";
 import { cn } from "@/lib/utils";
 import type { Profile, Track } from "@/types";
 
+// ── Notify Me ─────────────────────────────────────────────────────────────────
+
+function NotifyMeButton({ aurorId, seekerId }: { aurorId: string; seekerId: string }) {
+  const [subscribed, setSubscribed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!seekerId) { setLoading(false); return; }
+    fetch(`/api/watchlist/${seekerId}`)
+      .then((r) => r.json() as Promise<string[]>)
+      .then((ids) => setSubscribed(ids.includes(aurorId)))
+      .finally(() => setLoading(false));
+  }, [aurorId, seekerId]);
+
+  async function toggle(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!seekerId || loading) return;
+    const next = !subscribed;
+    setSubscribed(next);
+    await fetch("/api/watchlist", {
+      method: next ? "POST" : "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seekerId, aurorId }),
+    });
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={loading || !seekerId}
+      title={subscribed ? "Stop notifications" : "Notify me when new slots open"}
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+        subscribed
+          ? "border-primary-300 bg-primary-50 text-primary-700"
+          : "border-neutral-200 bg-white text-neutral-500 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-600"
+      )}
+    >
+      <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M7 1.5C7 1.5 4 3 4 7v2.5H3l-.5 1H11.5l-.5-1H10V7c0-4-3-5.5-3-5.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+        <path d="M5.5 10.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.2"/>
+      </svg>
+      {subscribed ? "✓ Notified" : "Notify Me"}
+    </button>
+  );
+}
+
 interface AurorWithStats {
   id: string;
   profile: Profile | null;
@@ -99,8 +146,10 @@ export default function AurorsPage() {
   const [search, setSearch] = useState("");
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [seekerId, setSeekerId] = useState("");
 
   useEffect(() => {
+    setSeekerId(localStorage.getItem("userId") ?? "");
     fetch("/api/aurors")
       .then((r) => r.json() as Promise<AurorWithStats[]>)
       .then((data) => setAurors(Array.isArray(data) ? data : []))
@@ -257,7 +306,7 @@ export default function AurorsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {results.map((auror) => (
-            <AurorCard key={auror.id} auror={auror} />
+            <AurorCard key={auror.id} auror={auror} seekerId={seekerId} />
           ))}
         </div>
       )}
@@ -265,8 +314,8 @@ export default function AurorsPage() {
   );
 }
 
-function AurorCard({ auror }: { auror: AurorWithStats }) {
-  const { profile, rating, reviewCount } = auror;
+function AurorCard({ auror, seekerId }: { auror: AurorWithStats; seekerId: string }) {
+  const { profile, rating, reviewCount, completedSessions } = auror;
 
   const allTracks = [
     ...(profile?.primaryTrack ? [profile.primaryTrack as Track] : []),
@@ -327,46 +376,60 @@ function AurorCard({ auror }: { auror: AurorWithStats }) {
         </div>
       )}
 
-      {/* Signal row */}
-      <div className="flex items-center gap-3 border-t border-neutral-100 pt-2.5">
-        {rating !== null ? (
-          <span className="text-[11px] font-medium text-amber-500">
-            ★ {rating}
-            {reviewCount > 0 && (
-              <span className="ml-0.5 font-normal text-neutral-400">({reviewCount})</span>
-            )}
-          </span>
-        ) : (
-          <span className="text-[11px] text-neutral-300">No reviews</span>
-        )}
+      {/* Signal row — 2-line layout to prevent overflow on mobile */}
+      <div className="flex flex-col gap-2 border-t border-neutral-100 pt-2.5">
+        {/* Stats line */}
+        <div className="flex items-center gap-3">
+          {rating !== null ? (
+            <span className="text-[11px] font-medium text-amber-500">
+              ★ {rating}
+              {reviewCount > 0 && (
+                <span className="ml-0.5 font-normal text-neutral-400">({reviewCount})</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-[11px] text-neutral-300">No reviews</span>
+          )}
 
-        {sessionLabels.length > 0 && (
-          <>
-            <span className="text-neutral-200">·</span>
-            <div className="flex gap-1">
-              {sessionLabels.map((label) => (
-                <span
-                  key={label}
-                  className="rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          </>
-        )}
+          {completedSessions > 0 && (
+            <>
+              <span className="text-neutral-200">·</span>
+              <span className="text-[11px] text-neutral-400">
+                {completedSessions} session{completedSessions === 1 ? "" : "s"}
+              </span>
+            </>
+          )}
 
-        <div className="ml-auto flex gap-2">
-          <Link href={`/auror/${auror.id}`}>
-            <Button variant="secondary" size="sm">
+          {sessionLabels.length > 0 && (
+            <>
+              <span className="text-neutral-200">·</span>
+              <div className="flex gap-1">
+                {sessionLabels.map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          <Link href={`/auror/${auror.id}`} className="flex-1">
+            <Button variant="secondary" size="sm" className="w-full">
               View Profile
             </Button>
           </Link>
-          <Link href={`/book/${auror.id}`}>
-            <Button size="sm">
+          <Link href={`/book/${auror.id}`} className="flex-1">
+            <Button size="sm" className="w-full">
               Book Session
             </Button>
           </Link>
+          <NotifyMeButton aurorId={auror.id} seekerId={seekerId} />
         </div>
       </div>
     </Card>

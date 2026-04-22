@@ -69,10 +69,10 @@ export default function LoginPage() {
           {/* Header */}
           <div className="mb-7 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600">
-              <span className="text-lg font-bold text-white">CC</span>
+              <span className="text-lg font-bold text-white">L</span>
             </div>
-            <h1 className="text-xl font-semibold text-neutral-900">Sign in</h1>
-            <p className="mt-1 text-sm text-neutral-500">Welcome back</p>
+            <h1 className="text-xl font-semibold text-neutral-900">Welcome back</h1>
+            <p className="mt-1 text-sm text-neutral-500">Sign in to Lumora</p>
           </div>
 
           {/* Form */}

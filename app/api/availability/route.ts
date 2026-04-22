@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hasOverlap, getBookingWindow } from "@/lib/availability";
+import { createNotification } from "@/lib/notifications";
 import type { CreateSlotPayload } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -51,6 +52,43 @@ export async function POST(request: NextRequest) {
     const slot = await prisma.availabilitySlot.create({
       data: { userId, date: slotDate, startTime, endTime, validTo },
     });
+
+    // Notify seekers watching this Auror — deduplicate: skip if an unread NEW_SLOT
+    // notification for this auror was sent to the same seeker in the last 30 min.
+    const watchers = await prisma.slotWatchlist.findMany({
+      where: { aurorId: userId },
+      select: { seekerId: true },
+    });
+
+    if (watchers.length > 0) {
+      const aurorProfile = await prisma.profile.findUnique({ where: { userId } });
+      const aurorName = aurorProfile?.name ?? "An Auror";
+      const slotLabel = `${startTime}–${endTime} on ${slotDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
+
+      const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+      await Promise.all(
+        watchers.map(async ({ seekerId }) => {
+          const recent = await prisma.notification.findFirst({
+            where: {
+              userId: seekerId,
+              type: "NEW_SLOT",
+              isRead: false,
+              createdAt: { gte: thirtyMinAgo },
+              message: { contains: aurorName },
+            },
+          });
+          if (!recent) {
+            await createNotification(
+              seekerId,
+              "New slot available",
+              `${aurorName} just opened a slot: ${slotLabel}.`,
+              "NEW_SLOT"
+            );
+          }
+        })
+      );
+    }
 
     return NextResponse.json(slot, { status: 201 });
   } catch (error) {
