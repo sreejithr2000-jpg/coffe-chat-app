@@ -24,7 +24,8 @@ export function Navbar() {
     setIsLoggedIn(!!localStorage.getItem("userId"));
   }, []);
 
-  function handleLogout() {
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
     localStorage.removeItem("userId");
     router.push("/login");
   }
@@ -41,10 +42,10 @@ export function Navbar() {
           className="flex items-center gap-2 text-neutral-900 no-underline hover:text-neutral-900"
         >
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-xs font-bold text-white">
-            CC
+            L
           </span>
           <span className="text-[15px] font-semibold tracking-tight">
-            CoffeeChat
+            Lumora
           </span>
         </Link>
 

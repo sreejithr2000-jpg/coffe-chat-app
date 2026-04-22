@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { setSessionCookie } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,15 +37,10 @@ export async function POST(request: NextRequest) {
       data: { email: normalised, passwordHash: hashPassword(password) },
     });
 
-    return NextResponse.json({ userId: user.id }, { status: 201 });
-  } catch (error) {
-    console.error("AUTH ERROR:", error);
-    return NextResponse.json(
-      {
-        error: "Auth failed",
-        details: error instanceof Error ? error.message : JSON.stringify(error),
-      },
-      { status: 500 }
-    );
+    const res = NextResponse.json({ userId: user.id }, { status: 201 });
+    setSessionCookie(res, user.id);
+    return res;
+  } catch {
+    return NextResponse.json({ error: "Signup failed. Please try again." }, { status: 500 });
   }
 }

@@ -38,3 +38,38 @@
     @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2;
   }
 }
+
+/* ── Lumora brand animations ─────────────────────────────────────────────── */
+@keyframes lumora-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(1.06); }
+}
+
+@keyframes lumora-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+
+@keyframes lumora-float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%       { transform: translateY(-14px) rotate(8deg); }
+}
+
+@keyframes lumora-badge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  60%       { box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.08); }
+}
+
+@keyframes lumora-shimmer {
+  0%   { background-position: -400% center; }
+  100% { background-position: 400% center; }
+}
+
+.lumora-glow         { animation: lumora-glow 4s ease-in-out infinite; }
+.lumora-float        { animation: lumora-float 5s ease-in-out infinite; }
+.lumora-float-slow   { animation: lumora-float-slow 7s ease-in-out infinite; }
+.lumora-badge-pulse  { animation: lumora-badge 2.5s ease-in-out infinite; }
+.lumora-shimmer-btn  {
+  background-size: 300% auto;
+  animation: lumora-shimmer 4s linear infinite;
+}

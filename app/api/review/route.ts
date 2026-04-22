@@ -12,9 +12,12 @@ export async function POST(request: NextRequest) {
       attended: boolean;
       review?: string;
       takeaways?: string[];
+      displayMode?: string;
     };
 
-    const { bookingId, seekerId, rating, attended, review: rawReview, takeaways: rawTakeaways } = body;
+    const { bookingId, seekerId, rating, attended, review: rawReview, takeaways: rawTakeaways, displayMode: rawDisplayMode } = body;
+    const VALID_DISPLAY_MODES = ["anonymous", "first_name", "full_name"];
+    const displayMode = VALID_DISPLAY_MODES.includes(rawDisplayMode ?? "") ? rawDisplayMode! : "anonymous";
     const reviewText = rawReview ? rawReview.trim().slice(0, 500) || null : null;
     const takeaways = Array.isArray(rawTakeaways)
       ? rawTakeaways.map((t) => t.trim()).filter((t) => t.length > 0).slice(0, 5)
@@ -59,6 +62,7 @@ export async function POST(request: NextRequest) {
           attended,
           review: reviewText,
           takeaways,
+          displayMode,
         },
       }),
       prisma.booking.update({
@@ -77,12 +81,12 @@ export async function POST(request: NextRequest) {
       "SESSION_COMPLETED"
     );
     const seeker = await prisma.user.findUnique({ where: { id: seekerId } });
-    sendEmail(
+    await sendEmail(
       seeker?.email,
       "Session complete — thanks for using CoffeeChat!",
       `<p>Your session has been marked as complete. Thanks for using CoffeeChat!</p>
        <p>We hope it was a great experience. Keep going! ✨</p>`
-    ).catch(() => {});
+    );
 
     return NextResponse.json(review, { status: 201 });
   } catch (error) {

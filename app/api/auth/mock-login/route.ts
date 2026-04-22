@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { setSessionCookie } from "@/lib/session";
 
 export async function POST(req: Request) {
   try {
@@ -10,17 +11,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
-    // Reuse existing mock user for this role
     const existingUser = await prisma.user.findFirst({
       where: { role },
       include: { profile: true },
     });
 
     if (existingUser) {
-      return NextResponse.json({ userId: existingUser.id });
+      const res = NextResponse.json({ userId: existingUser.id });
+      setSessionCookie(res, existingUser.id);
+      return res;
     }
 
-    // First login — create user + profile
     const user = await prisma.user.create({
       data: {
         role,
@@ -50,9 +51,10 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ userId: user.id });
-  } catch (error) {
-    console.error("Mock login error:", error);
+    const res = NextResponse.json({ userId: user.id });
+    setSessionCookie(res, user.id);
+    return res;
+  } catch {
     return NextResponse.json({ error: "Mock login failed" }, { status: 500 });
   }
 }

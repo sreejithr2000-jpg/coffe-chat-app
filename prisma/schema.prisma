@@ -53,6 +53,16 @@ model User {
   seekerReviews     Review[]           @relation("SeekerReviews")
   aurorReviews      Review[]           @relation("AurorReviews")
   notifications     Notification[]
+  watchlistAsSeeker SlotWatchlist[]    @relation("SeekerWatchlist")
+  watchlistAsAuror  SlotWatchlist[]    @relation("AurorWatchlist")
+
+  // Google OAuth — all nullable; null = not connected
+  googleId           String?   @unique
+  googleEmail        String?
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  googleConnectedAt  DateTime?
 
   @@map("users")
 }
@@ -132,6 +142,9 @@ model Booking {
   scheduledAt        DateTime
   completedAt        DateTime?
   meetingLink        String?
+  googleEventId      String?
+  calendarProvider   String?   // "google" | null
+  googleEventAt      DateTime?
   lastMessageAt      DateTime?
   seekerLastReadAt   DateTime?
   aurorLastReadAt    DateTime?
@@ -149,15 +162,16 @@ model Booking {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  bookingId String   @unique
-  seekerId  String
-  aurorId   String
-  rating    Int
-  attended  Boolean
-  review    String?
-  takeaways String[]
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  bookingId   String   @unique
+  seekerId    String
+  aurorId     String
+  rating      Int
+  attended    Boolean
+  review      String?
+  takeaways   String[]
+  displayMode String   @default("anonymous") // anonymous | first_name | full_name
+  createdAt   DateTime @default(now())
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   seeker  User    @relation("SeekerReviews", fields: [seekerId], references: [id], onDelete: Cascade)
@@ -214,4 +228,17 @@ model Notification {
 
   @@index([userId])
   @@map("notifications")
+}
+
+model SlotWatchlist {
+  id        String   @id @default(cuid())
+  seekerId  String
+  aurorId   String
+  createdAt DateTime @default(now())
+
+  seeker User @relation("SeekerWatchlist", fields: [seekerId], references: [id], onDelete: Cascade)
+  auror  User @relation("AurorWatchlist",  fields: [aurorId],  references: [id], onDelete: Cascade)
+
+  @@unique([seekerId, aurorId])
+  @@map("slot_watchlist")
 }

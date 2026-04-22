@@ -21,7 +21,7 @@ export default function AppLayout({
   return (
     <ToastProvider>
       <AppNavbar />
-      <main className="container-page py-10">{children}</main>
+      <main className="container-page py-6 sm:py-10">{children}</main>
     </ToastProvider>
   );
 }

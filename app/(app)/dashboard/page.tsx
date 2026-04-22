@@ -8,6 +8,7 @@ import { useToast } from "@/lib/toast-context";
 import { ProfileHoverPreview } from "@/components/ProfileHoverPreview";
 import { TRACK_LABELS } from "@/lib/tracks";
 import { formatSlotDate } from "@/lib/availability";
+import { isValidMeetingUrl } from "@/lib/meeting";
 import { cn } from "@/lib/utils";
 import {
   getProfileScore,
@@ -90,7 +91,7 @@ export default function DashboardPage() {
             .catch(() => {});
         }
       })
-      .catch(() => { localStorage.removeItem("userId"); setState("no-user"); });
+      .catch(() => { fetch("/api/auth/logout", { method: "POST" }); localStorage.removeItem("userId"); setState("no-user"); });
   }, []);
 
   // ── Guards ────────────────────────────────────────────────────────────────
@@ -205,9 +206,9 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-5 max-w-5xl">
 
       {/* ── Row 1: Header + primary CTA ────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-neutral-900 sm:text-2xl">
             {profile ? `Welcome back, ${profile.name.split(" ")[0]}` : "Dashboard"}
           </h1>
           <p className="mt-0.5 text-sm text-neutral-500">
@@ -218,7 +219,7 @@ export default function DashboardPage() {
           <Badge variant={isAuror ? "success" : "primary"}>{user?.role}</Badge>
           {isSeeker && (
             <Link href="/aurors">
-              <Button>Browse Aurors</Button>
+              <Button size="sm">Browse Aurors</Button>
             </Link>
           )}
           {isAuror && (
@@ -245,10 +246,13 @@ export default function DashboardPage() {
         <ProfileCompletionBanner profile={profile} role={user.role} score={completionScore} />
       )}
 
+      {/* ── Monday availability reminder (Aurors only) ────────────────────── */}
+      {isAuror && <MondayReminderBanner />}
+
       {/* ── Row 2: Metric cards ─────────────────────────────────────────────── */}
       <div className={cn(
         "grid gap-3",
-        isAuror ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
+        isAuror ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-3"
       )}>
         {isSeeker ? (
           <>
@@ -258,10 +262,11 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <StatCard label="Completed"  value={String(completedCount)} />
-            <StatCard label="Upcoming"   value={String(upcomingAurorSessions.length)} />
-            <StatCard label="Avg rating" value={avgRating ? `★ ${avgRating}` : "—"} />
-            <StatCard label="Response"   value={responseTimeLabel ?? "—"} accent={responseTimeLabel === "Slow"} />
+            <StatCard label="Completed"       value={String(completedCount)} />
+            <StatCard label="Upcoming"        value={String(upcomingAurorSessions.length)} />
+            <StatCard label="Pending requests" value={String(pendingAurorRequests.length)} subtle />
+            <StatCard label="Avg rating"      value={avgRating ? `★ ${avgRating}` : "—"} />
+            <StatCard label="Response"        value={responseTimeLabel ?? "—"} accent={responseTimeLabel === "Slow"} />
           </>
         )}
       </div>
@@ -292,6 +297,7 @@ export default function DashboardPage() {
                         booking={bk}
                         perspective="seeker"
                         seekerId={user!.id}
+                        seekerName={user?.profile?.name ?? undefined}
                         onUpdate={(updated) =>
                           setSeekerBookings((prev) =>
                             prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
@@ -377,13 +383,12 @@ export default function DashboardPage() {
               <SectionHeader title="Incoming Requests" emphasis badge={pendingAurorRequests.length} />
               {pendingAurorRequests.length === 0 ? (
                 <EmptyState
-                  message="No requests yet"
-                  sub="New booking requests will show here once seekers find your profile."
-                  action={
-                    <Link href="/profile/create">
-                      <Button size="sm" variant="secondary">Edit Profile</Button>
-                    </Link>
-                  }
+                  message="No incoming requests yet."
+                  sub="Keep your profile updated and manage availability to attract seekers."
+                  subtleLinks={[
+                    { label: "Edit Profile", href: "/profile/create" },
+                    { label: "Manage Availability", href: "/availability" },
+                  ]}
                 />
               ) : (
                 <div className="flex flex-col gap-3">
@@ -424,24 +429,34 @@ export default function DashboardPage() {
               {aurorReviews.length > 0 ? (
                 <Card padding="md">
                   <div className="flex flex-col gap-3">
+                    {/* Header */}
                     <div className="flex items-baseline justify-between">
-                      <span className="text-xl font-bold text-neutral-900">★ {avgRating}</span>
-                      <span className="text-[12px] text-neutral-400">
-                        {aurorReviews.length} review{aurorReviews.length === 1 ? "" : "s"}
-                      </span>
+                      <div>
+                        <span className="text-xl font-bold text-neutral-900">★ {avgRating}</span>
+                        <span className="ml-2 text-[12px] text-neutral-400">
+                          {aurorReviews.length} review{aurorReviews.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Preview: up to 2 reviews with text, no per-review stars */}
                     {aurorReviews.filter((r) => r.review).slice(0, 2).map((r) => (
                       <div key={r.id} className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5">
-                        <div className="mb-1 flex items-center justify-between">
-                          <span className="text-[11px] text-amber-400">
-                            {"★".repeat(r.rating)}
-                            <span className="text-neutral-200">{"★".repeat(5 - r.rating)}</span>
-                          </span>
-                          <span className="text-[10px] text-neutral-400">Anonymous</span>
-                        </div>
                         <p className="line-clamp-2 text-[11px] leading-relaxed text-neutral-600">{r.review}</p>
+                        <p className="mt-1 text-[10px] text-neutral-400">Anonymous review</p>
                       </div>
                     ))}
+
+                    {/* See all CTA */}
+                    <Link
+                      href="/reviews"
+                      className="flex items-center justify-center gap-1 rounded-lg border border-neutral-200 bg-white py-1.5 text-[11px] font-medium text-neutral-600 transition-colors hover:bg-neutral-50"
+                    >
+                      See all reviews
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                        <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </Link>
                   </div>
                 </Card>
               ) : (
@@ -665,9 +680,9 @@ function StatCard({
 }) {
   return (
     <Card padding="md">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-[10px] font-semibold uppercase leading-tight tracking-widest text-neutral-400 sm:text-[11px]">{label}</p>
       <p className={cn(
-        "mt-1.5 text-xl font-bold",
+        "mt-1.5 text-lg font-bold sm:text-xl",
         accent  ? "text-amber-600"   :
         subtle  ? "text-neutral-500" :
                   "text-neutral-900"
@@ -680,11 +695,33 @@ function StatCard({
 
 // ── EmptyState ────────────────────────────────────────────────────────────────
 
-function EmptyState({ message, sub, action }: { message: string; sub?: string; action?: React.ReactNode }) {
+function EmptyState({
+  message,
+  sub,
+  action,
+  subtleLinks,
+}: {
+  message: string;
+  sub?: string;
+  action?: React.ReactNode;
+  subtleLinks?: { label: string; href: string }[];
+}) {
   return (
     <div className="rounded-xl border border-dashed border-neutral-200 px-6 py-8 text-center">
       <p className="text-sm text-neutral-400">{message}</p>
       {sub && <p className="mt-1 text-[12px] text-neutral-400">{sub}</p>}
+      {subtleLinks && subtleLinks.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+          {subtleLinks.map((link, i) => (
+            <React.Fragment key={link.href}>
+              {i > 0 && <span className="text-neutral-300 text-[11px]">·</span>}
+              <Link href={link.href} className="text-[12px] text-primary-600 hover:text-primary-700 hover:underline">
+                {link.label}
+              </Link>
+            </React.Fragment>
+          ))}
+        </div>
+      )}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
@@ -1142,11 +1179,13 @@ function BookingRow({
   booking,
   perspective,
   seekerId,
+  seekerName,
   onUpdate,
 }: {
   booking: BookingWithDetails;
   perspective: "seeker" | "auror";
   seekerId?: string;
+  seekerName?: string;
   onUpdate?: (updated: Partial<BookingWithDetails> & { id: string }) => void;
 }): React.ReactElement {
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -1226,9 +1265,9 @@ function BookingRow({
 
           {/* Join Meeting */}
           {status === "scheduled" && (
-            booking.meetingLink ? (
+            isValidMeetingUrl(booking.meetingLink) ? (
               <a
-                href={booking.meetingLink}
+                href={booking.meetingLink!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary-600 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700"
@@ -1264,9 +1303,14 @@ function BookingRow({
         bookingId={id}
         seekerId={seekerId}
         aurorName={name}
+        seekerName={seekerName}
         onCancel={() => setShowReviewForm(false)}
         onComplete={(data) => {
-          onUpdate({ id, status: "completed", review: data });
+          if (data.attended) {
+            onUpdate({ id, status: "completed", review: { rating: data.rating, review: data.review, takeaways: data.takeaways } });
+          } else {
+            onUpdate({ id, status: "cancelled" });
+          }
           setShowReviewForm(false);
         }}
       />
@@ -1277,31 +1321,62 @@ function BookingRow({
 
 // ── MarkCompleteModal ─────────────────────────────────────────────────────────
 
+const NO_SHOW_REASONS = [
+  { value: "auror_no_show",       label: "Auror didn't show up" },
+  { value: "seeker_no_show",      label: "I wasn't able to attend" },
+  { value: "scheduling_conflict", label: "Scheduling conflict" },
+  { value: "technical_issue",     label: "Technical issue" },
+  { value: "rescheduled",         label: "Session rescheduled elsewhere" },
+  { value: "broken_link",         label: "Meeting link was missing or broken" },
+  { value: "other",               label: "Other" },
+] as const;
+
+type NoShowReason = typeof NO_SHOW_REASONS[number]["value"];
+
+type DisplayMode = "anonymous" | "first_name" | "full_name";
+
 function MarkCompleteModal({
   bookingId,
   seekerId,
   aurorName,
+  seekerName,
   onCancel,
   onComplete,
 }: {
   bookingId: string;
   seekerId: string;
   aurorName: string;
+  seekerName?: string;
   onCancel: () => void;
-  onComplete: (data: { rating: number; review: string | null; takeaways: string[] }) => void;
+  onComplete: (
+    data:
+      | { attended: true; rating: number; review: string | null; takeaways: string[] }
+      | { attended: false }
+  ) => void;
 }) {
-  const [attended, setAttended] = useState(true);
-  const [rating, setRating] = useState(0);
-  const [hovered, setHovered] = useState(0);
-  const [review, setReview] = useState("");
+  // ── Step state ────────────────────────────────────────────────────────────
+  const [step, setStep] = useState<"question" | "feedback" | "resolution">("question");
+
+  // ── Feedback (YES) state ──────────────────────────────────────────────────
+  const [rating, setRating]       = useState(0);
+  const [hovered, setHovered]     = useState(0);
+  const [review, setReview]       = useState("");
   const [takeaways, setTakeaways] = useState(["", "", ""]);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("anonymous");
+
+  // ── Resolution (NO) state ─────────────────────────────────────────────────
+  const [reason, setReason]         = useState<NoShowReason | null>(null);
+  const [reasonNote, setReasonNote] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]           = useState<string | null>(null);
 
-  const display = hovered || rating;
+  const display         = hovered || rating;
   const filledTakeaways = takeaways.filter((t) => t.trim().length > 0);
+  const firstName       = seekerName?.split(" ")[0] ?? null;
 
-  async function handleSubmit() {
+  // ── Submit YES path ───────────────────────────────────────────────────────
+  async function handleSubmitFeedback() {
     if (rating === 0) { setError("Please select a rating."); return; }
     setSubmitting(true);
     setError(null);
@@ -1313,18 +1388,41 @@ function MarkCompleteModal({
           bookingId,
           seekerId,
           rating,
-          attended,
+          attended: true,
           review: review.trim() || undefined,
           takeaways: filledTakeaways,
+          displayMode,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Something went wrong"); return; }
-      onComplete({
-        rating,
-        takeaways: filledTakeaways,
-        review: review.trim() || null,
+      onComplete({ attended: true, rating, takeaways: filledTakeaways, review: review.trim() || null });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ── Submit NO path ────────────────────────────────────────────────────────
+  async function handleSubmitResolution() {
+    if (!reason) { setError("Please select a reason."); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/booking/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          seekerId,
+          reason,
+          reasonNote: reasonNote.trim() || undefined,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Something went wrong"); return; }
+      onComplete({ attended: false });
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -1337,11 +1435,14 @@ function MarkCompleteModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl max-h-[90vh]">
+
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 px-5 py-4">
           <div>
-            <p className="text-[15px] font-bold text-neutral-900">Mark as Completed</p>
+            <p className="text-[15px] font-bold text-neutral-900">
+              {step === "resolution" ? "Session Issue" : "Mark as Completed"}
+            </p>
             <p className="text-[12px] text-neutral-400">Session with {aurorName}</p>
           </div>
           <button
@@ -1354,130 +1455,251 @@ function MarkCompleteModal({
           </button>
         </div>
 
-        <div className="flex flex-col gap-4 px-5 py-4">
-          {/* Did session happen? */}
-          <div className="flex flex-col gap-2">
-            <p className="text-[12px] font-semibold text-neutral-700">Did the session happen?</p>
-            <div className="flex gap-2">
-              {(["Yes", "No"] as const).map((opt) => {
-                const val = opt === "Yes";
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setAttended(val)}
-                    className={cn(
-                      "flex-1 rounded-lg border py-1.5 text-[12px] font-semibold transition-colors",
-                      attended === val
-                        ? "border-emerald-400 bg-emerald-600 text-white"
-                        : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:bg-neutral-100"
-                    )}
-                  >
-                    {opt}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {/* Body — scrollable */}
+        <div className="flex flex-col gap-4 overflow-y-auto px-5 py-5">
 
-          {/* Star rating */}
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[12px] font-semibold text-neutral-700">
-              Rating <span className="font-normal text-neutral-400">(required)</span>
-            </p>
-            <div className="flex gap-1.5">
-              {[1, 2, 3, 4, 5].map((star) => (
+          {/* ── Step 1: question ─────────────────────────────────────────── */}
+          {step === "question" && (
+            <div className="flex flex-col items-center gap-5 py-2 text-center">
+              <p className="text-[14px] font-semibold text-neutral-800">Did the session happen?</p>
+              <div className="flex w-full gap-3">
                 <button
-                  key={star}
-                  type="button"
-                  onClick={() => setRating(star)}
-                  onMouseEnter={() => setHovered(star)}
-                  onMouseLeave={() => setHovered(0)}
-                  className="text-[26px] leading-none transition-transform hover:scale-110 focus:outline-none"
-                  aria-label={`${star} star`}
+                  onClick={() => setStep("feedback")}
+                  className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border-2 border-emerald-200 bg-emerald-50 py-5 text-emerald-700 transition-colors hover:bg-emerald-100"
                 >
-                  <span className={star <= display ? "text-amber-400" : "text-neutral-200"}>★</span>
+                  <span className="text-[22px] leading-none">✓</span>
+                  <span className="text-[13px] font-semibold">Yes, it happened</span>
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Takeaways */}
-          <div className="flex flex-col gap-2">
-            <p className="text-[12px] font-semibold text-neutral-700">
-              Key takeaways{" "}
-              <span className="font-normal text-neutral-400">(optional — only visible to you)</span>
-            </p>
-            {takeaways.map((t, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" />
-                <input
-                  type="text"
-                  value={t}
-                  onChange={(e) =>
-                    setTakeaways((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
-                  }
-                  disabled={submitting}
-                  placeholder={
-                    i === 0 ? "e.g. How to negotiate offers effectively"
-                    : i === 1 ? "e.g. Build a strong personal narrative"
-                    : "e.g. Focus on impact, not just tasks"
-                  }
-                  className="h-8 flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-[12px] placeholder:text-neutral-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100 disabled:opacity-50"
-                />
+                <button
+                  onClick={() => setStep("resolution")}
+                  className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border-2 border-neutral-200 bg-neutral-50 py-5 text-neutral-600 transition-colors hover:bg-neutral-100"
+                >
+                  <span className="text-[22px] leading-none">✕</span>
+                  <span className="text-[13px] font-semibold">No, it didn&apos;t</span>
+                </button>
               </div>
-            ))}
-            {takeaways.length < 5 && (
-              <button
-                type="button"
-                onClick={() => setTakeaways((prev) => [...prev, ""])}
-                disabled={submitting}
-                className="mt-0.5 text-left text-[12px] font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50"
-              >
-                + Add another takeaway
-              </button>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Review for Auror (optional) */}
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[12px] font-semibold text-neutral-700">
-              Review for Auror{" "}
-              <span className="font-normal text-neutral-400">(optional — visible to them)</span>
-            </p>
-            <textarea
-              value={review}
-              onChange={(e) => setReview(e.target.value.slice(0, 500))}
-              disabled={submitting}
-              placeholder="Share your experience — what made this session valuable?"
-              rows={2}
-              className="w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-[12px] placeholder:text-neutral-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100 disabled:opacity-50"
-            />
-            {review.length > 0 && (
-              <p className="text-right text-[10px] text-neutral-400">{review.length}/500</p>
-            )}
-          </div>
+          {/* ── Step 2a: feedback (YES) ──────────────────────────────────── */}
+          {step === "feedback" && (
+            <>
+              {/* Star rating */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] font-semibold text-neutral-700">
+                  Rating <span className="font-normal text-neutral-400">(required)</span>
+                </p>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHovered(star)}
+                      onMouseLeave={() => setHovered(0)}
+                      className="text-[26px] leading-none transition-transform hover:scale-110 focus:outline-none"
+                      aria-label={`${star} star`}
+                    >
+                      <span className={star <= display ? "text-amber-400" : "text-neutral-200"}>★</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Takeaways */}
+              <div className="flex flex-col gap-2">
+                <p className="text-[12px] font-semibold text-neutral-700">
+                  Key takeaways{" "}
+                  <span className="font-normal text-neutral-400">(optional — only visible to you)</span>
+                </p>
+                {takeaways.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" />
+                    <input
+                      type="text"
+                      value={t}
+                      onChange={(e) =>
+                        setTakeaways((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
+                      }
+                      disabled={submitting}
+                      placeholder={
+                        i === 0 ? "e.g. How to negotiate offers effectively"
+                        : i === 1 ? "e.g. Build a strong personal narrative"
+                        : "e.g. Focus on impact, not just tasks"
+                      }
+                      className="h-8 flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-[12px] placeholder:text-neutral-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100 disabled:opacity-50"
+                    />
+                  </div>
+                ))}
+                {takeaways.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setTakeaways((prev) => [...prev, ""])}
+                    disabled={submitting}
+                    className="mt-0.5 text-left text-[12px] font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50"
+                  >
+                    + Add another takeaway
+                  </button>
+                )}
+              </div>
+
+              {/* Review for Auror */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] font-semibold text-neutral-700">
+                  Review for Auror{" "}
+                  <span className="font-normal text-neutral-400">(optional — visible to them)</span>
+                </p>
+                <textarea
+                  value={review}
+                  onChange={(e) => setReview(e.target.value.slice(0, 500))}
+                  disabled={submitting}
+                  placeholder="Share your experience — what made this session valuable?"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-[12px] placeholder:text-neutral-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100 disabled:opacity-50"
+                />
+                {review.length > 0 && (
+                  <p className="text-right text-[10px] text-neutral-400">{review.length}/500</p>
+                )}
+              </div>
+
+              {/* Identity choice — only shown when review has text */}
+              {review.trim().length > 0 && (
+                <div className="flex flex-col gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3">
+                  <p className="text-[12px] font-semibold text-neutral-700">
+                    Display name
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Help future seekers by sharing feedback with your name.
+                  </p>
+                  {([
+                    { value: "anonymous",  label: "Anonymous" },
+                    { value: "first_name", label: firstName ? `Show first name — "${firstName}"` : "Show first name" },
+                  ] as { value: DisplayMode; label: string }[]).map((opt) => (
+                    <label key={opt.value} className="flex cursor-pointer items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="displayMode"
+                        value={opt.value}
+                        checked={displayMode === opt.value}
+                        onChange={() => setDisplayMode(opt.value)}
+                        disabled={submitting}
+                        className="accent-primary-600"
+                      />
+                      <span className="text-[12px] text-neutral-700">{opt.label}</span>
+                      {opt.value === "anonymous" && (
+                        <span className="rounded-full bg-primary-50 px-1.5 py-0.5 text-[10px] font-medium text-primary-600">recommended</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Step 2b: resolution (NO) ─────────────────────────────────── */}
+          {step === "resolution" && (
+            <>
+              <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3">
+                <p className="text-[13px] font-semibold text-amber-800">
+                  Sorry this session didn&apos;t go as planned.
+                </p>
+                <p className="mt-0.5 text-[12px] text-amber-600">
+                  Let us know what happened so we can help resolve it.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <p className="text-[12px] font-semibold text-neutral-700">What happened?</p>
+                <div className="flex flex-wrap gap-2">
+                  {NO_SHOW_REASONS.map((r) => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => { setReason(r.value); setError(null); }}
+                      disabled={submitting}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                        reason === r.value
+                          ? "border-primary-500 bg-primary-600 text-white"
+                          : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 disabled:opacity-50"
+                      )}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {reason === "other" && (
+                <textarea
+                  value={reasonNote}
+                  onChange={(e) => setReasonNote(e.target.value.slice(0, 300))}
+                  disabled={submitting}
+                  placeholder="Tell us a bit more (optional)…"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-[12px] placeholder:text-neutral-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100 disabled:opacity-50"
+                />
+              )}
+
+              <p className="text-[11px] text-neutral-400">
+                This won&apos;t affect anyone&apos;s public profile. We use this to track and resolve session issues.
+              </p>
+            </>
+          )}
 
           {error && <p className="text-[12px] text-red-600">{error}</p>}
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-2 border-t border-neutral-100 px-5 py-4">
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || rating === 0}
-            className="flex-1 rounded-lg bg-emerald-600 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {submitting ? "Saving…" : "Save & Complete"}
-          </button>
-          <button
-            onClick={onCancel}
-            disabled={submitting}
-            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
+        {/* Footer — sticky at bottom */}
+        <div className="flex shrink-0 gap-2 border-t border-neutral-100 px-5 py-4">
+          {step === "question" && (
+            <button
+              onClick={onCancel}
+              className="flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-neutral-600 hover:bg-neutral-50"
+            >
+              Cancel
+            </button>
+          )}
+
+          {step === "feedback" && (
+            <>
+              <button
+                onClick={handleSubmitFeedback}
+                disabled={submitting || rating === 0}
+                className="flex-1 rounded-lg bg-emerald-600 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {submitting ? "Saving…" : "Save & Complete"}
+              </button>
+              <button
+                onClick={() => { setStep("question"); setError(null); }}
+                disabled={submitting}
+                className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Back
+              </button>
+            </>
+          )}
+
+          {step === "resolution" && (
+            <>
+              <button
+                onClick={handleSubmitResolution}
+                disabled={submitting || !reason}
+                className="flex-1 rounded-lg bg-neutral-800 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-neutral-900 disabled:opacity-50"
+              >
+                {submitting ? "Submitting…" : "Submit"}
+              </button>
+              <button
+                onClick={() => { setStep("question"); setError(null); }}
+                disabled={submitting}
+                className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Back
+              </button>
+            </>
+          )}
         </div>
+
       </div>
     </div>
   );
@@ -1516,8 +1738,7 @@ function CompletedCard({
             </p>
           )}
         </div>
-        {/* Auror sees rating; seeker does not */}
-        {perspective === "auror" && rev?.rating && (
+        {rev?.rating && (
           <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
             ★ {rev.rating}
           </span>
@@ -1639,6 +1860,118 @@ function BonusCard({
   );
 }
 
+// ── MondayReminderBanner ─────────────────────────────────────────────────────
+
+function MondayReminderBanner() {
+  const isMonday = new Date().getDay() === 1;
+  if (!isMonday) return null;
+  return (
+    <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-[13px] font-semibold text-primary-800">
+            It&apos;s Monday — update your availability for this week.
+          </p>
+          <p className="mt-0.5 text-[12px] text-primary-600">
+            Keep your slots current so seekers can find and book you.
+          </p>
+        </div>
+        <Link href="/availability" className="shrink-0">
+          <Button variant="secondary" size="sm">Manage Availability</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── RejectReasonModal ─────────────────────────────────────────────────────────
+
+const REJECT_REASONS = [
+  { value: "no_availability",   label: "No availability that week" },
+  { value: "not_my_expertise",  label: "Outside my expertise" },
+  { value: "low_preparation",   label: "Insufficient preparation from seeker" },
+  { value: "too_many_sessions", label: "Already at capacity this week" },
+  { value: "other",             label: "Other" },
+] as const;
+
+type RejectReason = typeof REJECT_REASONS[number]["value"];
+
+function RejectReasonModal({
+  seekerName,
+  rejecting,
+  onConfirm,
+  onCancel,
+}: {
+  seekerName: string;
+  rejecting: boolean;
+  onConfirm: (reason: RejectReason, note?: string) => void;
+  onCancel: () => void;
+}) {
+  const [reason, setReason] = useState<RejectReason | null>(null);
+  const [note, setNote] = useState("");
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !rejecting) onCancel(); }}
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
+        <div className="px-5 pt-5 pb-4">
+          <p className="text-[15px] font-bold text-neutral-900">Decline this request?</p>
+          <p className="mt-1 text-[13px] text-neutral-500">
+            Please select a reason for declining{" "}
+            <span className="font-medium text-neutral-700">{seekerName}</span>&apos;s request.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {REJECT_REASONS.map((r) => (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => { setReason(r.value); }}
+                disabled={rejecting}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                  reason === r.value
+                    ? "border-red-400 bg-red-50 text-red-700"
+                    : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100"
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {reason === "other" && (
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 200))}
+              disabled={rejecting}
+              placeholder="Brief note (optional)…"
+              rows={2}
+              className="mt-3 w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-[12px] placeholder:text-neutral-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100 disabled:opacity-50"
+            />
+          )}
+        </div>
+        <div className="flex gap-2 border-t border-neutral-100 px-5 py-4">
+          <button
+            onClick={onCancel}
+            disabled={rejecting}
+            className="flex-1 rounded-lg border border-neutral-200 bg-white py-2 text-[13px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => reason && onConfirm(reason, note.trim() || undefined)}
+            disabled={rejecting || !reason}
+            className="flex-1 rounded-lg bg-red-600 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+          >
+            {rejecting ? "Declining…" : "Decline Request"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── IncomingRequestCard (Auror view) ─────────────────────────────────────────
 
 function IncomingRequestCard({
@@ -1653,6 +1986,7 @@ function IncomingRequestCard({
   onAccept?: () => void;
 }) {
   const [acting, setActing] = useState<"accept" | "reject" | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { seeker, availabilitySlot, status, questions, expiresAt, id, sessionType, duration, seekerId } = request;
@@ -1661,14 +1995,14 @@ function IncomingRequestCard({
   const isPending = status === "pending";
   const sessionLabel = sessionType === "coffee" ? "Coffee Chat" : "Mock Interview";
 
-  async function handleAction(action: "accept" | "reject") {
+  async function handleAction(action: "accept" | "reject", rejectReason?: string) {
     setActing(action);
     setError(null);
     try {
       const res = await fetch(`/api/request/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, aurorId }),
+        body: JSON.stringify({ action, aurorId, rejectReason }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Something went wrong"); return; }
@@ -1678,10 +2012,12 @@ function IncomingRequestCard({
       setError("Network error. Please try again.");
     } finally {
       setActing(null);
+      setShowRejectModal(false);
     }
   }
 
   return (
+    <>
     <div className={cn(
       "flex flex-col gap-3 rounded-xl border bg-white px-4 py-4 shadow-soft transition-shadow hover:shadow-md",
       status === "expired" || status === "rejected" ? "opacity-60 border-neutral-100" : "border-neutral-100"
@@ -1772,7 +2108,7 @@ function IncomingRequestCard({
             {acting === "accept" ? "Accepting…" : "Accept"}
           </button>
           <button
-            onClick={() => handleAction("reject")}
+            onClick={() => setShowRejectModal(true)}
             disabled={acting !== null}
             className={cn(
               "flex-1 rounded-lg border px-3 py-2 text-[12px] font-semibold transition-colors",
@@ -1781,7 +2117,7 @@ function IncomingRequestCard({
                 : "border-neutral-200 bg-white text-neutral-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
             )}
           >
-            {acting === "reject" ? "Rejecting…" : "Reject"}
+            {acting === "reject" ? "Declining…" : "Decline"}
           </button>
         </div>
       )}
@@ -1799,5 +2135,15 @@ function IncomingRequestCard({
 
       {error && <p className="text-[12px] text-red-600">{error}</p>}
     </div>
+
+    {showRejectModal && (
+      <RejectReasonModal
+        seekerName={seekerName}
+        rejecting={acting === "reject"}
+        onConfirm={(reason, note) => handleAction("reject", `${reason}${note ? `: ${note}` : ""}`)}
+        onCancel={() => setShowRejectModal(false)}
+      />
+    )}
+  </>
   );
 }

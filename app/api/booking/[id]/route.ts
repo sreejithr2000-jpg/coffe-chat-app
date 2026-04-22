@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 
 export async function GET(
   _request: NextRequest,
@@ -79,6 +80,43 @@ export async function PATCH(
       where: { id },
       data: { status: newStatus },
     });
+
+    // ── Notify auror when a session is cancelled ─────────────────────────────
+    if (newStatus === "cancelled") {
+      const cancelBody = body as {
+        action: "cancel";
+        seekerId: string;
+        reason?: string;
+        reasonNote?: string;
+      };
+      const reason = cancelBody.reason ?? "unspecified";
+
+      const seekerProfile = await prisma.profile.findUnique({
+        where: { userId: seekerId },
+        select: { name: true },
+      });
+      const seekerName = seekerProfile?.name ?? "A seeker";
+
+      const reasonMessages: Record<string, string> = {
+        auror_no_show:       `${seekerName} reported that you didn't show up for the scheduled session.`,
+        seeker_no_show:      `${seekerName} was unable to attend the session.`,
+        scheduling_conflict: `${seekerName} reported a scheduling conflict.`,
+        technical_issue:     `${seekerName} reported a technical issue with the session.`,
+        rescheduled:         `${seekerName} noted the session was rescheduled elsewhere.`,
+        broken_link:         `${seekerName} reported the meeting link was missing or broken.`,
+        other:               `${seekerName} reported an issue with the session.`,
+      };
+
+      const message =
+        reasonMessages[reason] ?? `${seekerName} marked the session as not completed.`;
+
+      await createNotification(
+        booking.aurorId,
+        "Session not completed",
+        message,
+        "SESSION_CANCELLED"
+      );
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

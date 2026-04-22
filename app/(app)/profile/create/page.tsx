@@ -427,7 +427,7 @@ export default function CreateProfilePage() {
           Complete your profile to start booking sessions
         </p>
 
-        <Card padding="lg">
+        <Card padding="md" className="sm:p-8">
 
           {/* Step indicator */}
           <StepBar step={step} total={5} labels={STEP_LABELS} />
@@ -632,7 +632,7 @@ export default function CreateProfilePage() {
                       </div>
 
                       {/* Role + Company */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <Input label="Role" placeholder="e.g. PM" value={exp.role}
                           onChange={(e) => updateExperience(i, { role: e.target.value })} />
                         <Input label="Company" placeholder="e.g. Acme" value={exp.company}
@@ -640,7 +640,7 @@ export default function CreateProfilePage() {
                       </div>
 
                       {/* Dates */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
                         <div className="flex flex-col gap-1.5">
                           <span className="text-[12px] font-medium text-neutral-600">Start</span>
                           <div className="flex gap-1.5">
@@ -792,7 +792,7 @@ export default function CreateProfilePage() {
                       </div>
 
                       {/* Degree + Course */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <Select
                           label="Degree *"
                           placeholder="Select…"
@@ -809,7 +809,7 @@ export default function CreateProfilePage() {
                       </div>
 
                       {/* Institution + Year */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <Input label="Institution" placeholder="e.g. UC Berkeley" value={edu.school}
                           onChange={(e) => updateEducation(i, "school", e.target.value)} />
                         <Input label="Year" placeholder="e.g. 2022" value={edu.year}

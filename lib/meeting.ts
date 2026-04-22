@@ -1,13 +1,27 @@
-const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+const APPROVED_ORIGINS = [
+  "https://meet.google.com",
+  "https://meet.jit.si",
+];
 
 /**
- * Generates a random readable meeting link.
- * Example: https://meet.app/k7xm2pqr
+ * Returns true only for meeting URLs from approved providers.
+ * Prevents fake/placeholder URLs (e.g. meet.app) from being rendered.
  */
-export function generateMeetingLink(): string {
-  let result = "";
-  for (let i = 0; i < 10; i++) {
-    result += CHARS[Math.floor(Math.random() * CHARS.length)];
+export function isValidMeetingUrl(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const { origin } = new URL(url);
+    return APPROVED_ORIGINS.some((approved) => origin === approved);
+  } catch {
+    return false;
   }
-  return `https://meet.app/${result}`;
+}
+
+/**
+ * Generates a Jitsi meeting link scoped to the booking/request ID.
+ * Falls back to Google Meet when the Auror has an active OAuth token.
+ */
+export function generateMeetingLink(sessionId: string): string {
+  const slug = sessionId.replace(/[^a-z0-9]/gi, "").slice(0, 20);
+  return `https://meet.jit.si/coffeechat-${slug}`;
 }

@@ -60,10 +60,10 @@ export default function SignupPage() {
           {/* Header */}
           <div className="mb-7 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600">
-              <span className="text-lg font-bold text-white">CC</span>
+              <span className="text-lg font-bold text-white">L</span>
             </div>
-            <h1 className="text-xl font-semibold text-neutral-900">Create account</h1>
-            <p className="mt-1 text-sm text-neutral-500">Join the Coffee Chat community</p>
+            <h1 className="text-xl font-semibold text-neutral-900">Create your account</h1>
+            <p className="mt-1 text-sm text-neutral-500">Join Lumora — it&apos;s free</p>
           </div>
 
           {/* Form */}
