@@ -71,7 +71,7 @@ function addToGCalUrl(bk: BookingWithDetails, perspective: UserRole): string {
     title:    `${type} with ${other}`,
     startTime: start,
     endTime:   end,
-    details:   bk.meetingLink ? `Join: ${bk.meetingLink}` : "CoffeeChat session",
+    details:   bk.meetingLink ? `Join: ${bk.meetingLink}` : "Lumora OneFlow session",
     location:  bk.meetingLink ?? undefined,
   });
 }

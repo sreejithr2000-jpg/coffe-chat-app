@@ -5,6 +5,12 @@ import Link from "next/link";
 import { Card, Button } from "@/components/ui";
 import { TRACK_LABELS } from "@/lib/tracks";
 import { cn } from "@/lib/utils";
+import {
+  REGION_TIMEZONES,
+  getUTCOffsetHours,
+  formatTimezoneDisplay,
+  formatLocation,
+} from "@/lib/timezone";
 import type { Profile, Track } from "@/types";
 
 // ── Notify Me ─────────────────────────────────────────────────────────────────
@@ -75,6 +81,12 @@ const SERVICE_FILTERS = [
   { label: "Mock Interview",  value: "mock_interview" },
 ];
 
+const REGION_FILTERS = [
+  { label: "North America", value: "North America" },
+  { label: "Europe",        value: "Europe" },
+  { label: "Asia-Pacific",  value: "Asia-Pacific" },
+];
+
 // ── Search helpers ────────────────────────────────────────────────────────────
 
 const norm = (s: string | null | undefined) => s?.toLowerCase() ?? "";
@@ -84,31 +96,34 @@ function tokenize(query: string): string[] {
 }
 
 interface TokenMatch {
-  nameMatch: boolean;
-  roleMatch: boolean;
-  skillMatch: boolean;
-  domainMatch: boolean;
-  companyMatch: boolean;
-  serviceMatch: boolean;
+  nameMatch:     boolean;
+  roleMatch:     boolean;
+  skillMatch:    boolean;
+  domainMatch:   boolean;
+  companyMatch:  boolean;
+  serviceMatch:  boolean;
+  locationMatch: boolean;
 }
 
 function matchToken(auror: AurorWithStats, token: string): TokenMatch {
   const p = auror.profile;
   const experience = (p?.experience ?? []) as Array<{ company?: string }>;
   return {
-    nameMatch:    norm(p?.name).includes(token),
-    roleMatch:    norm(p?.currentRole).includes(token),
-    skillMatch:   (p?.skills ?? []).some((s) => norm(s).includes(token)),
-    domainMatch:  (p?.domains ?? []).some((d) => norm(d).includes(token)),
-    companyMatch: experience.some((e) => norm(e.company).includes(token)),
-    serviceMatch: (p?.sessionTypes ?? []).some((t) => norm(t).includes(token)),
+    nameMatch:     norm(p?.name).includes(token),
+    roleMatch:     norm(p?.currentRole).includes(token),
+    skillMatch:    (p?.skills ?? []).some((s) => norm(s).includes(token)),
+    domainMatch:   (p?.domains ?? []).some((d) => norm(d).includes(token)),
+    companyMatch:  experience.some((e) => norm(e.company).includes(token)),
+    serviceMatch:  (p?.sessionTypes ?? []).some((t) => norm(t).includes(token)),
+    locationMatch: norm(p?.city).includes(token) || norm(p?.country).includes(token),
   };
 }
 
 function matchesAllTokens(auror: AurorWithStats, tokens: string[]): boolean {
   return tokens.every((token) => {
     const m = matchToken(auror, token);
-    return m.nameMatch || m.roleMatch || m.skillMatch || m.domainMatch || m.companyMatch || m.serviceMatch;
+    return m.nameMatch || m.roleMatch || m.skillMatch || m.domainMatch ||
+           m.companyMatch || m.serviceMatch || m.locationMatch;
   });
 }
 
@@ -119,37 +134,58 @@ function scoreAuror(
   service: string | null,
 ): number {
   let score = 0;
-
   if (auror.rating) score += auror.rating * 2;
-
   if (domain && (auror.profile?.domains ?? []).some((d) => d.toLowerCase() === domain)) score += 3;
   if (service && (auror.profile?.sessionTypes ?? []).includes(service)) score += 2;
-
   for (const token of tokens) {
     const m = matchToken(auror, token);
-    if (m.nameMatch)    score += 5;
-    if (m.roleMatch)    score += 4;
-    if (m.companyMatch) score += 3;
-    if (m.domainMatch)  score += 2;
-    if (m.skillMatch)   score += 1;
-    if (m.serviceMatch) score += 1;
+    if (m.nameMatch)     score += 5;
+    if (m.roleMatch)     score += 4;
+    if (m.companyMatch)  score += 3;
+    if (m.domainMatch)   score += 2;
+    if (m.skillMatch)    score += 1;
+    if (m.serviceMatch)  score += 1;
+    if (m.locationMatch) score += 2;
   }
-
   return score;
+}
+
+// ── Region / timezone matching ────────────────────────────────────────────────
+
+function isInRegion(timezone: string | undefined | null, region: string): boolean {
+  if (!timezone) return false;
+  const regionTzs = REGION_TIMEZONES[region];
+  if (!regionTzs) return false;
+  if (regionTzs.includes(timezone)) return true;
+  // Fuzzy: match by UTC offset bucket if timezone not in our list
+  const aurorOffset = Math.round(getUTCOffsetHours(timezone) * 2) / 2;
+  return regionTzs.some((tz) => Math.round(getUTCOffsetHours(tz) * 2) / 2 === aurorOffset);
+}
+
+function isSameTimezone(aurorTz: string | undefined | null, myTz: string): boolean {
+  if (!aurorTz) return false;
+  // Match by UTC offset rounded to nearest 30 min
+  const a = Math.round(getUTCOffsetHours(aurorTz) * 2);
+  const b = Math.round(getUTCOffsetHours(myTz) * 2);
+  return a === b;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AurorsPage() {
-  const [aurors, setAurors] = useState<AurorWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [aurors, setAurors]             = useState<AurorWithStats[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [search, setSearch]             = useState("");
+  const [selectedDomain, setSelectedDomain]   = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [seekerId, setSeekerId] = useState("");
+  const [selectedRegion, setSelectedRegion]   = useState<string | null>(null);
+  const [sameTimezone, setSameTimezone]       = useState(false);
+  const [seekerId, setSeekerId]         = useState("");
+  const [myTimezone, setMyTimezone]     = useState("");
 
   useEffect(() => {
     setSeekerId(localStorage.getItem("userId") ?? "");
+    setMyTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
     fetch("/api/aurors")
       .then((r) => r.json() as Promise<AurorWithStats[]>)
       .then((data) => setAurors(Array.isArray(data) ? data : []))
@@ -169,6 +205,12 @@ export default function AurorsPage() {
       if (selectedService && !(p.sessionTypes ?? []).includes(selectedService))
         return false;
 
+      if (selectedRegion && !isInRegion(p.timezone, selectedRegion))
+        return false;
+
+      if (sameTimezone && myTimezone && !isSameTimezone(p.timezone, myTimezone))
+        return false;
+
       if (tokens.length > 0 && !matchesAllTokens(auror, tokens))
         return false;
 
@@ -180,14 +222,16 @@ export default function AurorsPage() {
         scoreAuror(b, tokens, selectedDomain, selectedService) -
         scoreAuror(a, tokens, selectedDomain, selectedService)
     );
-  }, [aurors, search, selectedDomain, selectedService]);
+  }, [aurors, search, selectedDomain, selectedService, selectedRegion, sameTimezone, myTimezone]);
 
-  const hasFilters = !!(search || selectedDomain || selectedService);
+  const hasFilters = !!(search || selectedDomain || selectedService || selectedRegion || sameTimezone);
 
   function clearFilters() {
     setSearch("");
     setSelectedDomain(null);
     setSelectedService(null);
+    setSelectedRegion(null);
+    setSameTimezone(false);
   }
 
   if (loading) {
@@ -211,23 +255,18 @@ export default function AurorsPage() {
       {/* Search */}
       <div className="relative">
         <svg
-          width="15"
-          height="15"
-          viewBox="0 0 15 15"
-          fill="none"
+          width="15" height="15" viewBox="0 0 15 15" fill="none"
           className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
           aria-hidden="true"
         >
           <path
             d="M10 6.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm-.854 3.354 2.5 2.5"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinecap="round"
+            stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
           />
         </svg>
         <input
           type="text"
-          placeholder="Search by name, role, skill, or topic…"
+          placeholder="Search by name, role, skill, city, or country…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={cn(
@@ -250,38 +289,62 @@ export default function AurorsPage() {
       </div>
 
       {/* Filter pills */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">
-          Domain
-        </span>
-        {DOMAIN_FILTERS.map((f) => (
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Domain + Session */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">Domain</span>
+          {DOMAIN_FILTERS.map((f) => (
+            <FilterPill
+              key={f.value}
+              label={f.label}
+              active={selectedDomain === f.value}
+              onClick={() => setSelectedDomain(selectedDomain === f.value ? null : f.value)}
+            />
+          ))}
+          <span className="mx-1 text-neutral-200">|</span>
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">Session</span>
+          {SERVICE_FILTERS.map((f) => (
+            <FilterPill
+              key={f.value}
+              label={f.label}
+              active={selectedService === f.value}
+              onClick={() => setSelectedService(selectedService === f.value ? null : f.value)}
+            />
+          ))}
+        </div>
+
+        {/* Row 2: Region + Same Timezone */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">Region</span>
+          {REGION_FILTERS.map((f) => (
+            <FilterPill
+              key={f.value}
+              label={f.label}
+              active={selectedRegion === f.value}
+              onClick={() => {
+                setSelectedRegion(selectedRegion === f.value ? null : f.value);
+                setSameTimezone(false);
+              }}
+            />
+          ))}
+          <span className="mx-1 text-neutral-200">|</span>
           <FilterPill
-            key={f.value}
-            label={f.label}
-            active={selectedDomain === f.value}
-            onClick={() => setSelectedDomain(selectedDomain === f.value ? null : f.value)}
+            label="Same Timezone"
+            active={sameTimezone}
+            onClick={() => {
+              setSameTimezone((v) => !v);
+              setSelectedRegion(null);
+            }}
           />
-        ))}
-        <span className="mx-1 text-neutral-200">|</span>
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">
-          Session
-        </span>
-        {SERVICE_FILTERS.map((f) => (
-          <FilterPill
-            key={f.value}
-            label={f.label}
-            active={selectedService === f.value}
-            onClick={() => setSelectedService(selectedService === f.value ? null : f.value)}
-          />
-        ))}
-        {hasFilters && (
-          <button
-            onClick={clearFilters}
-            className="ml-1 text-[11px] text-neutral-400 underline-offset-2 hover:text-neutral-600 hover:underline"
-          >
-            Clear
-          </button>
-        )}
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="ml-1 text-[11px] text-neutral-400 underline-offset-2 hover:text-neutral-600 hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Result count */}
@@ -306,7 +369,7 @@ export default function AurorsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {results.map((auror) => (
-            <AurorCard key={auror.id} auror={auror} seekerId={seekerId} />
+            <AurorCard key={auror.id} auror={auror} seekerId={seekerId} myTimezone={myTimezone} />
           ))}
         </div>
       )}
@@ -314,7 +377,15 @@ export default function AurorsPage() {
   );
 }
 
-function AurorCard({ auror, seekerId }: { auror: AurorWithStats; seekerId: string }) {
+function AurorCard({
+  auror,
+  seekerId,
+  myTimezone,
+}: {
+  auror: AurorWithStats;
+  seekerId: string;
+  myTimezone: string;
+}) {
   const { profile, rating, reviewCount, completedSessions } = auror;
 
   const allTracks = [
@@ -325,6 +396,14 @@ function AurorCard({ auror, seekerId }: { auror: AurorWithStats; seekerId: strin
   const sessionLabels = (profile?.sessionTypes ?? []).map((t) =>
     t === "coffee_chat" ? "Coffee" : "Mock"
   );
+
+  const location    = formatLocation(profile?.city, profile?.country);
+  const tzDisplay   = profile?.timezone && profile.timezone !== "UTC"
+    ? formatTimezoneDisplay(profile.timezone)
+    : null;
+  const sameZone    = myTimezone && profile?.timezone
+    ? isSameTimezone(profile.timezone, myTimezone)
+    : false;
 
   return (
     <Card padding="md" className="flex flex-col gap-3">
@@ -349,6 +428,24 @@ function AurorCard({ auror, seekerId }: { auror: AurorWithStats; seekerId: strin
           )}
         </div>
       </div>
+
+      {/* Location + timezone */}
+      {(location || tzDisplay) && (
+        <div className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="shrink-0">
+            <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2"/>
+            <circle cx="6" cy="4.5" r="1.2" stroke="currentColor" strokeWidth="1.1"/>
+          </svg>
+          {location && <span>{location}</span>}
+          {location && tzDisplay && <span className="text-neutral-300">·</span>}
+          {tzDisplay && (
+            <span className={cn(sameZone && "font-medium text-primary-600")}>
+              {tzDisplay}
+              {sameZone && " · Same timezone"}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Overview snippet */}
       {profile?.overview && (
@@ -376,9 +473,8 @@ function AurorCard({ auror, seekerId }: { auror: AurorWithStats; seekerId: strin
         </div>
       )}
 
-      {/* Signal row — 2-line layout to prevent overflow on mobile */}
+      {/* Signal row */}
       <div className="flex flex-col gap-2 border-t border-neutral-100 pt-2.5">
-        {/* Stats line */}
         <div className="flex items-center gap-3">
           {rating !== null ? (
             <span className="text-[11px] font-medium text-amber-500">
@@ -461,3 +557,4 @@ function FilterPill({
     </button>
   );
 }
+

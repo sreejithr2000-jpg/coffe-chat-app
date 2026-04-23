@@ -171,7 +171,7 @@ export async function PATCH(
 
             const calResult = await createCalendarEvent(accessToken, {
               title,
-              description: `CoffeeChat session\nType: ${sessionLabel}\nDuration: ${updated.duration} minutes\nHost: ${aurorProfileForCal?.name ?? "Auror"}`,
+              description: `Lumora OneFlow session\nType: ${sessionLabel}\nDuration: ${updated.duration} minutes\nHost: ${aurorProfileForCal?.name ?? "Auror"}`,
               startTime:   scheduledAt,
               endTime:     scheduledEnd,
               attendeeEmails: attendees,
@@ -216,7 +216,7 @@ export async function PATCH(
         "Your session request was accepted",
         `<p>Great news! <strong>${aurorName}</strong> accepted your session request.</p>
          ${meetSection}
-         <p>Log in to CoffeeChat to view your upcoming session.</p>`
+         <p>Log in to Lumora OneFlow to view your upcoming session.</p>`
       );
 
       return NextResponse.json(updated);

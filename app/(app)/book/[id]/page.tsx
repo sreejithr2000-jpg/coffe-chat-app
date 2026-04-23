@@ -13,6 +13,7 @@ import {
   DURATION_OPTIONS,
 } from "@/lib/availability";
 import { cn } from "@/lib/utils";
+import { formatTimezoneDisplay, getUTCOffsetHours } from "@/lib/timezone";
 import type { User, EnrichedSlot } from "@/types";
 
 interface AurorStats {
@@ -250,6 +251,11 @@ export default function BookingPage() {
           </div>
         )}
       </Card>
+
+      {/* ── Timezone context banner ───────────────────────────────────────────── */}
+      {profile?.timezone && profile.timezone !== "UTC" && (
+        <TimezoneContextBanner aurorTimezone={profile.timezone} />
+      )}
 
       {/* ── Availability status banner ─────────────────────────────────────────── */}
       {futureSlots.length > 0 && busyCount > 0 && (
@@ -808,6 +814,46 @@ function RequestForm({
         >
           Cancel
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── TimezoneContextBanner ─────────────────────────────────────────────────────
+
+function TimezoneContextBanner({ aurorTimezone }: { aurorTimezone: string }) {
+  const myTz       = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const aurorOffset = getUTCOffsetHours(aurorTimezone);
+  const myOffset    = getUTCOffsetHours(myTz);
+  const diffH       = aurorOffset - myOffset;
+  const absDiff     = Math.abs(diffH);
+
+  const aurorTzLabel = formatTimezoneDisplay(aurorTimezone);
+  const myTzLabel    = formatTimezoneDisplay(myTz);
+
+  let diffLabel = "";
+  if (Math.abs(diffH) < 0.25) {
+    diffLabel = "same timezone as you";
+  } else {
+    const h    = Math.floor(absDiff);
+    const m    = Math.round((absDiff - h) * 60);
+    const part = m > 0 ? `${h}h ${m}m` : `${h} hr${h !== 1 ? "s" : ""}`;
+    diffLabel  = diffH > 0 ? `${part} ahead of you` : `${part} behind you`;
+  }
+
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" className="mt-0.5 shrink-0 text-blue-400" aria-hidden="true">
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
+        <path d="M6 3.5V6l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+      <div className="flex flex-col gap-0.5">
+        <p className="text-[12px] font-medium text-blue-700">
+          Auror is in {aurorTzLabel} — {diffLabel}
+        </p>
+        <p className="text-[11px] text-blue-500">
+          Times above are in the Auror&apos;s timezone. Your timezone: {myTzLabel}
+        </p>
       </div>
     </div>
   );

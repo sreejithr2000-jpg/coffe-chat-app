@@ -22,6 +22,18 @@ const config: Config = {
           800: "#1E40AF",
           900: "#1E3A8A",
         },
+        violet: {
+          50:  "#F5F0FF",
+          100: "#EDE6FF",
+          200: "#D9CCFF",
+          300: "#C0AAFF",
+          400: "#A986F0",
+          500: "#9A74E8",
+          600: "#8A62E2",
+          700: "#6E4CC4",
+          800: "#5535A0",
+          900: "#3D2178",
+        },
         neutral: {
           0: "#FFFFFF",
           50: "#F9FAFB",
@@ -37,7 +49,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "Poppins", "Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
         soft: "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04)",

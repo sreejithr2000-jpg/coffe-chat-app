@@ -102,6 +102,7 @@ model Profile {
   // ── Identity extras ──────────────────────────────────────────────────────
   username        String?  @unique
   country         String?
+  city            String?
 
   // ── Scheduling ───────────────────────────────────────────────────────────
   timezone        String   @default("UTC")

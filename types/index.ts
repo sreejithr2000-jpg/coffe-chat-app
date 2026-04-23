@@ -170,6 +170,7 @@ export interface Profile {
   // Identity
   username: string | null;
   country: string | null;
+  city: string | null;
   timezone: string;
   createdAt: string;
 }

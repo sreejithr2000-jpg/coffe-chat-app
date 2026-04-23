@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
     const seeker = await prisma.user.findUnique({ where: { id: seekerId } });
     await sendEmail(
       seeker?.email,
-      "Session complete — thanks for using CoffeeChat!",
-      `<p>Your session has been marked as complete. Thanks for using CoffeeChat!</p>
+      "Session complete — thanks for using Lumora OneFlow!",
+      `<p>Your session has been marked as complete. Thanks for using Lumora OneFlow!</p>
        <p>We hope it was a great experience. Keep going! ✨</p>`
     );
 

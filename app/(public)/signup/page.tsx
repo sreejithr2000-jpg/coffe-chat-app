@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -59,11 +60,17 @@ export default function SignupPage() {
         <Card padding="lg">
           {/* Header */}
           <div className="mb-7 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600">
-              <span className="text-lg font-bold text-white">L</span>
-            </div>
+            <Image
+              src="/brand/lumora-oneflow-icon.png"
+              alt="Lumora OneFlow"
+              width={52}
+              height={52}
+              className="mx-auto mb-4"
+              priority
+            />
             <h1 className="text-xl font-semibold text-neutral-900">Create your account</h1>
-            <p className="mt-1 text-sm text-neutral-500">Join Lumora — it&apos;s free</p>
+            <p className="mt-0.5 text-[13px] font-semibold" style={{ color: "#8A62E2" }}>Real guidance. Real growth.</p>
+            <p className="mt-1 text-sm text-neutral-500">Join Lumora OneFlow — it&apos;s free</p>
           </div>
 
           {/* Form */}

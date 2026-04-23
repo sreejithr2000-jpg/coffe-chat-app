@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 // ── Section wrapper ─────────────────────────────────────────────────────────
 
@@ -162,29 +163,49 @@ export default function LandingPage() {
           }}
         />
 
-        {/* Radial glow — Lumora light */}
+        {/* Radial glow — violet + blue blend */}
         <div
           aria-hidden
-          className="lumora-glow pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[420px] w-[640px] rounded-full"
-          style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.07) 0%, transparent 70%)" }}
+          className="lumora-glow pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[480px] w-[700px] rounded-full"
+          style={{ background: "radial-gradient(ellipse, rgba(138,98,226,0.08) 0%, rgba(37,99,235,0.05) 45%, transparent 70%)" }}
         />
 
-        {/* Floating orbs */}
-        <div aria-hidden className="pointer-events-none absolute left-[8%] top-[18%] lumora-float">
-          <div className="h-3 w-3 rounded-full bg-primary-200 opacity-60" />
+        {/* Brand sparkles — 4-pointed stars matching the logo's sparkle motif */}
+        <div aria-hidden className="pointer-events-none absolute left-[9%] top-[16%] lumora-float">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: "#0079FF", opacity: 0.45 }}>
+            <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5Z" fill="currentColor"/>
+          </svg>
         </div>
-        <div aria-hidden className="pointer-events-none absolute right-[12%] top-[28%] lumora-float-slow">
-          <div className="h-2 w-2 rounded-full bg-primary-300 opacity-40" />
+        <div aria-hidden className="pointer-events-none absolute right-[8%] top-[22%] lumora-float-slow hidden sm:block">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: "#8A62E2", opacity: 0.38 }}>
+            <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5Z" fill="currentColor"/>
+          </svg>
         </div>
-        <div aria-hidden className="pointer-events-none absolute left-[18%] bottom-[20%] lumora-float-slow">
-          <div className="h-4 w-4 rounded-full bg-amber-200 opacity-30" />
+        <div aria-hidden className="pointer-events-none absolute left-[17%] bottom-[24%] lumora-float-slow hidden sm:block">
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none" style={{ color: "#8A62E2", opacity: 0.30 }}>
+            <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5Z" fill="currentColor"/>
+          </svg>
         </div>
-        <div aria-hidden className="pointer-events-none absolute right-[20%] bottom-[30%] lumora-float">
-          <div className="h-2.5 w-2.5 rounded-full bg-primary-200 opacity-50" />
+        <div aria-hidden className="pointer-events-none absolute right-[19%] bottom-[30%] lumora-float">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: "#0079FF", opacity: 0.35 }}>
+            <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5Z" fill="currentColor"/>
+          </svg>
         </div>
 
         {/* Content */}
         <div className="relative mx-auto w-full max-w-3xl px-6 text-center lg:px-8">
+          {/* Brand icon — centered above badge */}
+          <div className="mb-5 flex justify-center">
+            <Image
+              src="/brand/lumora-oneflow-icon.png"
+              alt="Lumora OneFlow"
+              width={52}
+              height={52}
+              priority
+              className="opacity-90"
+            />
+          </div>
+
           <span className="lumora-badge-pulse inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[12px] font-semibold text-primary-700">
             <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
             Now in early access
@@ -196,10 +217,13 @@ export default function LandingPage() {
             <span className="text-primary-600">real mentors.</span>
           </h1>
 
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-neutral-500 sm:text-lg">
-            Lumora connects you with practitioners who&apos;ve walked your path.
-            Build a profile that tells your real story, and book focused sessions
-            matched to your goals.
+          <p className="mx-auto mt-3 text-base font-semibold" style={{ color: "#8A62E2" }}>
+            Real guidance. Real growth.
+          </p>
+
+          <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-neutral-500 sm:text-lg">
+            Lumora OneFlow connects you with practitioners who&apos;ve walked your path.
+            One connected journey — from your first session to your next career move.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -385,7 +409,7 @@ export default function LandingPage() {
           <p className="mb-2 text-[12px] font-semibold uppercase tracking-widest text-primary-600">
             Three roles, one platform
           </p>
-          <h2 className="text-2xl font-bold text-neutral-900 sm:text-3xl">Who is Lumora for?</h2>
+          <h2 className="text-2xl font-bold text-neutral-900 sm:text-3xl">Who is Lumora OneFlow for?</h2>
           <p className="mx-auto mt-3 max-w-md text-[14px] text-neutral-500">
             Whether you&apos;re seeking guidance, offering expertise, or supporting peers — there&apos;s a place for you.
           </p>
@@ -660,24 +684,24 @@ export default function LandingPage() {
           <div className="flex flex-col divide-y divide-neutral-100">
             {[
               {
-                q: "Is Lumora a job placement service?",
-                a: "No. Lumora is an educational and networking platform. It helps users learn, prepare, and grow through guided conversations with experienced practitioners. We do not place candidates in roles or guarantee employment outcomes.",
+                q: "Is Lumora OneFlow a job placement service?",
+                a: "No. Lumora OneFlow is an educational and networking platform. It helps users learn, prepare, and grow through guided conversations with experienced practitioners. We do not place candidates in roles or guarantee employment outcomes.",
               },
               {
                 q: "Can mentors guarantee referrals or jobs?",
-                a: "No. Outcomes depend on many individual factors outside any platform's control. Lumora does not guarantee interviews, referrals, or job offers. Advice shared reflects personal experience and perspective.",
+                a: "No. Outcomes depend on many individual factors outside any platform's control. Lumora OneFlow does not guarantee interviews, referrals, or job offers. Advice shared reflects personal experience and perspective.",
               },
               {
                 q: "Who are Aurors?",
-                a: "Aurors are working professionals who volunteer to host focused sessions on Lumora. They set their own availability and decide how many sessions to take on. They are informal mentors — people who've walked the path you're on and want to help.",
+                a: "Aurors are working professionals who volunteer to host focused sessions on Lumora OneFlow. They set their own availability and decide how many sessions to take on. They are informal mentors — people who've walked the path you're on and want to help.",
               },
               {
                 q: "What is a Prefect?",
-                a: "Prefect is an upcoming peer-support role on Lumora. Prefects will be able to offer collaborative practice, peer resume review, accountability sessions, and early-career guidance. This role is coming soon.",
+                a: "Prefect is an upcoming peer-support role on Lumora OneFlow. Prefects will be able to offer collaborative practice, peer resume review, accountability sessions, and early-career guidance. This role is coming soon.",
               },
               {
                 q: "Are sessions recorded?",
-                a: "Sessions are not recorded by default on Lumora. Any recording would require the explicit agreement of both parties and must comply with applicable laws and platform policies.",
+                a: "Sessions are not recorded by default on Lumora OneFlow. Any recording would require the explicit agreement of both parties and must comply with applicable laws and platform policies.",
               },
               {
                 q: "Can I choose who I speak with?",
@@ -710,7 +734,7 @@ export default function LandingPage() {
           </h2>
           <div className="mx-auto mb-8 grid max-w-2xl grid-cols-1 gap-3 text-left sm:grid-cols-2">
             {[
-              "Lumora provides educational and networking support only.",
+              "Lumora OneFlow provides educational and networking support only.",
               "We do not guarantee jobs, referrals, interviews, or outcomes.",
               "Advice shared by users reflects personal experience.",
               "Users should exercise professional judgment in all decisions.",
@@ -748,11 +772,13 @@ export default function LandingPage() {
             {/* Brand */}
             <div className="flex flex-col items-center gap-2 sm:items-start">
               <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-xs font-bold text-white">L</span>
-                <span className="text-[15px] font-semibold text-neutral-900">Lumora</span>
+                <Image src="/brand/lumora-oneflow-icon.png" alt="" width={28} height={28} />
+                <span className="text-[14px] font-bold leading-none tracking-tight text-neutral-900">
+                  Lumora <span style={{ color: "#8A62E2" }}>OneFlow</span>
+                </span>
               </div>
               <p className="max-w-[220px] text-center text-[11px] leading-relaxed text-neutral-400 sm:text-left">
-                Career clarity through real conversations.
+                Real guidance. Real growth.
               </p>
             </div>
 
@@ -789,7 +815,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-[11px] text-neutral-400">
-                © {new Date().getFullYear()} Lumora. All rights reserved.
+                © {new Date().getFullYear()} Lumora OneFlow. All rights reserved.
               </p>
             </div>
 

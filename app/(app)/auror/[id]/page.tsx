@@ -7,6 +7,7 @@ import { Card, Button, Badge } from "@/components/ui";
 import { BackButton } from "@/components/BackButton";
 import { TRACK_LABELS } from "@/lib/tracks";
 import { cn } from "@/lib/utils";
+import { formatLocation, formatTimezoneDisplay, getLocalTime } from "@/lib/timezone";
 import type { User, UserRole, ExperienceEntry, EducationEntry } from "@/types";
 
 function NotifyMeButton({ aurorId, seekerId }: { aurorId: string; seekerId: string }) {
@@ -76,6 +77,7 @@ export default function AurorProfilePage() {
   const [stats, setStats] = useState<AurorStats | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready">("loading");
+  const [localTime, setLocalTime] = useState("");
 
   useEffect(() => {
     const id = localStorage.getItem("userId");
@@ -107,6 +109,15 @@ export default function AurorProfilePage() {
       .catch(() => setLoadState("ready"));
   }, [aurorId]);
 
+  // Live local time — updates every 30s
+  useEffect(() => {
+    if (!auror?.profile?.timezone) return;
+    const tz = auror.profile.timezone;
+    setLocalTime(getLocalTime(tz));
+    const interval = setInterval(() => setLocalTime(getLocalTime(tz)), 30_000);
+    return () => clearInterval(interval);
+  }, [auror?.profile?.timezone]);
+
   // ── Guards ───────────────────────────────────────────────────────────────────
   if (loadState === "loading") {
     return (
@@ -129,8 +140,10 @@ export default function AurorProfilePage() {
     );
   }
 
-  const profile = auror.profile;
-  const isSeeker = currentRole === "SEEKER";
+  const profile   = auror.profile;
+  const isSeeker  = currentRole === "SEEKER";
+  const location  = formatLocation(profile?.city, profile?.country);
+  const tzDisplay = profile?.timezone ? formatTimezoneDisplay(profile.timezone) : null;
 
   return (
     <div className="flex flex-col gap-8 max-w-2xl">
@@ -214,6 +227,35 @@ export default function AurorProfilePage() {
                       {stats.completedSessions} session{stats.completedSessions === 1 ? "" : "s"} completed
                     </span>
                   </>
+                )}
+              </div>
+            )}
+
+            {/* Location + timezone */}
+            {(location || tzDisplay) && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-100 pt-2">
+                {location && (
+                  <span className="flex items-center gap-1 text-[12px] text-neutral-500">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2"/>
+                      <circle cx="6" cy="4.5" r="1.2" stroke="currentColor" strokeWidth="1.1"/>
+                    </svg>
+                    {location}
+                  </span>
+                )}
+                {tzDisplay && (
+                  <span className="flex items-center gap-1 text-[12px] text-neutral-500">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M6 3.5V6l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                    {tzDisplay}
+                  </span>
+                )}
+                {localTime && (
+                  <span className="rounded-full border border-neutral-100 bg-neutral-50 px-2 py-0.5 text-[11px] font-medium text-neutral-500">
+                    Local time: {localTime}
+                  </span>
                 )}
               </div>
             )}

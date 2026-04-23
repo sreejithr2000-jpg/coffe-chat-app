@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
 
   await sendEmail(
     to,
-    "CoffeeChat — email test",
-    `<p>This is a test email from CoffeeChat.</p>
+    "Lumora OneFlow — email test",
+    `<p>This is a test email from Lumora OneFlow.</p>
      <p>If you received this, transactional email is working correctly.</p>
      <p>Sent at: ${new Date().toISOString()}</p>`
   );
