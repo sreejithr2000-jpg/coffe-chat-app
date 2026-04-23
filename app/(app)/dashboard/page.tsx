@@ -212,7 +212,7 @@ export default function DashboardPage() {
             {profile ? `Welcome back, ${profile.name.split(" ")[0]}` : "Dashboard"}
           </h1>
           <p className="mt-0.5 text-sm text-neutral-500">
-            {isSeeker ? "Track your sessions and requests." : "Manage your sessions and availability."}
+            {isSeeker ? "Track your progress and upcoming sessions." : "Manage your sessions and availability."}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -510,7 +510,7 @@ export default function DashboardPage() {
 function WelcomeBanner() {
   return (
     <div className="rounded-2xl bg-primary-600 px-6 py-5 text-white">
-      <p className="text-[18px] font-bold">Welcome to CoffeeChat ✨</p>
+      <p className="text-[18px] font-bold">Welcome to Lumora OneFlow ✨</p>
       <p className="mt-1 text-[13px] text-primary-100">
         Let&apos;s get you started. Set up your profile so you can make the most of the platform.
       </p>

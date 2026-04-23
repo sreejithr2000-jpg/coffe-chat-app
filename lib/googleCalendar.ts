@@ -82,7 +82,7 @@ export function buildICSContent(params: {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//CoffeeChat//EN",
+    "PRODID:-//Lumora OneFlow//EN",
     "BEGIN:VEVENT",
     `UID:${params.uid}@coffeechat`,
     `DTSTAMP:${fmt(new Date())}`,

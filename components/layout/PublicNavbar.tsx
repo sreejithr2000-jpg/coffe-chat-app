@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
@@ -27,11 +28,16 @@ export function PublicNavbar() {
           href="/"
           className="flex items-center gap-2 text-neutral-900 no-underline hover:text-neutral-900"
         >
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-xs font-bold text-white">
-            L
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight">
-            Lumora
+          <Image
+            src="/brand/lumora-oneflow-icon.png"
+            alt=""
+            width={30}
+            height={30}
+            className="shrink-0"
+            priority
+          />
+          <span className="text-[14px] font-bold leading-none tracking-tight text-neutral-900">
+            Lumora <span style={{ color: "#8A62E2" }}>OneFlow</span>
           </span>
         </Link>
 

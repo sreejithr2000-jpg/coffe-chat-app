@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import {
+  TIMEZONES,
+  COUNTRIES,
+  formatTimezoneDisplay,
+} from "@/lib/timezone";
+import type { User } from "@/types";
 
 interface GoogleStatus {
   configured:  boolean;
@@ -13,7 +19,7 @@ interface GoogleStatus {
   connectedAt: string | null;
 }
 
-// ── Google icon (reused) ──────────────────────────────────────────────────────
+// ── Google icon ───────────────────────────────────────────────────────────────
 
 function GoogleIcon({ size = 20 }: { size?: number }) {
   return (
@@ -69,6 +75,10 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   );
 }
 
+// ── Grouped timezone options ──────────────────────────────────────────────────
+
+const TZ_REGIONS = ["North America", "Europe", "Asia-Pacific", "Other"] as const;
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -80,9 +90,18 @@ export default function SettingsPage() {
   const [loadState, setLoadState]         = useState<"loading" | "ready">("loading");
   const [disconnecting, setDisconnecting] = useState(false);
 
-  // Notification preferences (localStorage-persisted, UI-only for now)
-  const [emailReminders, setEmailReminders]   = useState(true);
-  const [slotAlerts, setSlotAlerts]           = useState(true);
+  // Notification preferences
+  const [emailReminders, setEmailReminders] = useState(true);
+  const [slotAlerts, setSlotAlerts]         = useState(true);
+
+  // Location & Timezone
+  const [country,        setCountry]        = useState("");
+  const [city,           setCity]           = useState("");
+  const [timezone,       setTimezone]       = useState("UTC");
+  const [locationSaving, setLocationSaving] = useState(false);
+  const [locationSaved,  setLocationSaved]  = useState(false);
+  const [locationError,  setLocationError]  = useState<string | null>(null);
+  const [hasProfile,     setHasProfile]     = useState(true);
 
   const googleParam = searchParams.get("google");
 
@@ -101,9 +120,32 @@ export default function SettingsPage() {
       }
     } catch {}
 
-    fetch(`/api/auth/google/status/${id}`)
-      .then((r) => r.json() as Promise<GoogleStatus>)
-      .then((s) => { setStatus(s); setLoadState("ready"); })
+    // Load Google status + profile in parallel
+    const googleFetch  = fetch(`/api/auth/google/status/${id}`).then((r) => r.json() as Promise<GoogleStatus>);
+    const profileFetch = fetch(`/api/users/${id}`).then((r) => r.json() as Promise<User>);
+
+    Promise.all([googleFetch, profileFetch])
+      .then(([googleData, userData]) => {
+        setStatus(googleData);
+        if (userData?.profile) {
+          const p = userData.profile;
+          setCountry(p.country ?? "");
+          setCity(p.city ?? "");
+          const savedTz = p.timezone ?? "UTC";
+          setTimezone(savedTz);
+          // Auto-detect timezone only if not yet set
+          if (!savedTz || savedTz === "UTC") {
+            const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (detected) setTimezone(detected);
+          }
+        } else {
+          setHasProfile(false);
+          // Still auto-detect timezone for the form
+          const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (detected) setTimezone(detected);
+        }
+        setLoadState("ready");
+      })
       .catch(() => setLoadState("ready"));
   }, [router]);
 
@@ -112,6 +154,36 @@ export default function SettingsPage() {
     localStorage.setItem("cc_notif_prefs", JSON.stringify(next));
     if (key === "emailReminders") setEmailReminders(value);
     if (key === "slotAlerts")     setSlotAlerts(value);
+  }
+
+  function handleAutoDetect() {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (detected) setTimezone(detected);
+  }
+
+  async function handleSaveLocation() {
+    if (!userId || locationSaving) return;
+    setLocationSaving(true);
+    setLocationError(null);
+    setLocationSaved(false);
+    try {
+      const res = await fetch("/api/settings/location", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ userId, country, city, timezone }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setLocationError(data.error ?? "Failed to save. Try again.");
+      } else {
+        setLocationSaved(true);
+        setTimeout(() => setLocationSaved(false), 3000);
+      }
+    } catch {
+      setLocationError("Network error. Please try again.");
+    } finally {
+      setLocationSaving(false);
+    }
   }
 
   function handleConnect() {
@@ -151,6 +223,12 @@ export default function SettingsPage() {
     );
   }
 
+  const inputCls = cn(
+    "w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-[13px] text-neutral-900",
+    "focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-100",
+    "disabled:opacity-50"
+  );
+
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8">
 
@@ -176,7 +254,115 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── SECTION A: Connected Apps ─────────────────────────────────────────── */}
+      {/* ── SECTION A: Location & Timezone ───────────────────────────────────── */}
+      <SettingsSection title="Location &amp; Timezone">
+        <Card padding="md">
+          {!hasProfile ? (
+            <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-700">
+              Set up your profile first, then you can configure your location here.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <p className="text-[12px] text-neutral-500">
+                Helps seekers find mentors in their region and schedule sessions across timezones.
+                City and country are optional — only your timezone is shown publicly.
+              </p>
+
+              {/* Country */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-neutral-700">Country</label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  disabled={locationSaving}
+                  className={inputCls}
+                >
+                  <option value="">— Select country —</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* City */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-neutral-700">
+                  City <span className="font-normal text-neutral-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={locationSaving}
+                  placeholder="e.g. San Francisco"
+                  className={inputCls}
+                />
+              </div>
+
+              {/* Timezone */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[12px] font-semibold text-neutral-700">Timezone</label>
+                  <button
+                    type="button"
+                    onClick={handleAutoDetect}
+                    disabled={locationSaving}
+                    className="text-[11px] font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50"
+                  >
+                    Auto-detect
+                  </button>
+                </div>
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  disabled={locationSaving}
+                  className={inputCls}
+                >
+                  {TZ_REGIONS.map((region) => (
+                    <optgroup key={region} label={region}>
+                      {TIMEZONES.filter((t) => t.region === region).map((tz) => (
+                        <option key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                  {/* Fallback for browser timezones not in our list */}
+                  {!TIMEZONES.find((t) => t.value === timezone) && timezone && (
+                    <option value={timezone}>{timezone}</option>
+                  )}
+                </select>
+                {timezone && (
+                  <p className="text-[11px] text-neutral-400">
+                    Current: {formatTimezoneDisplay(timezone)}
+                  </p>
+                )}
+              </div>
+
+              {/* Save row */}
+              <div className="flex items-center justify-between border-t border-neutral-100 pt-2">
+                <div className="h-4">
+                  {locationSaved && (
+                    <p className="text-[12px] font-medium text-emerald-600">Saved!</p>
+                  )}
+                  {locationError && (
+                    <p className="text-[12px] text-red-600">{locationError}</p>
+                  )}
+                </div>
+                <button
+                  onClick={handleSaveLocation}
+                  disabled={locationSaving}
+                  className="rounded-lg bg-primary-600 px-4 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {locationSaving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </SettingsSection>
+
+      {/* ── SECTION B: Connected Apps ─────────────────────────────────────────── */}
       <SettingsSection title="Connected Apps">
         <Card padding="md">
           <div className="flex items-start gap-3">
@@ -243,7 +429,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* What it enables */}
           {!status?.connected && status?.configured && (
             <div className="mt-4 border-t border-neutral-100 pt-4">
               <ul className="flex flex-col gap-1.5">
@@ -263,7 +448,7 @@ export default function SettingsPage() {
         </Card>
       </SettingsSection>
 
-      {/* ── SECTION B: Notifications ──────────────────────────────────────────── */}
+      {/* ── SECTION C: Notifications ──────────────────────────────────────────── */}
       <SettingsSection title="Notifications">
         <Card padding="md">
           <div className="flex flex-col divide-y divide-neutral-100">
@@ -294,7 +479,7 @@ export default function SettingsPage() {
         </Card>
       </SettingsSection>
 
-      {/* ── SECTION C: Account ────────────────────────────────────────────────── */}
+      {/* ── SECTION D: Account ────────────────────────────────────────────────── */}
       <SettingsSection title="Account">
         <Card padding="md">
           <div className="flex flex-col divide-y divide-neutral-100">

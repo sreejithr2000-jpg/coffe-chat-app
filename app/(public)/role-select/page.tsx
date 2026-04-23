@@ -46,7 +46,7 @@ export default function RoleSelectPage() {
           {/* Header */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600">
-              <span className="text-lg font-bold text-white">CC</span>
+              <span className="text-lg font-bold text-white">L</span>
             </div>
             <h1 className="text-xl font-semibold text-neutral-900">What brings you here?</h1>
             <p className="mt-1.5 text-sm text-neutral-500">Choose your role to continue</p>

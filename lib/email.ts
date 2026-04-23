@@ -35,7 +35,7 @@ export async function sendEmail(
     }
 
     const result = await resend.emails.send({
-      from: process.env.RESEND_FROM ?? "Lumora <onboarding@resend.dev>",
+      from: process.env.RESEND_FROM ?? "Lumora OneFlow <onboarding@resend.dev>",
       to,
       subject,
       html,

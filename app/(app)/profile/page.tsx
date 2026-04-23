@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { TRACK_LABELS } from "@/lib/tracks";
 import { getProfileScore, getProfileChecklist } from "@/lib/profileCompletion";
+import { formatLocation, formatTimezoneDisplay } from "@/lib/timezone";
 import type { User, Profile, ExperienceEntry, EducationEntry } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -149,8 +150,27 @@ export default function MyProfilePage() {
             {!isAuror && profile.experienceYears > 0 && (
               <p className="text-[12px] text-neutral-500">{profile.experienceYears} yrs experience</p>
             )}
-            {profile.country && (
-              <p className="text-[12px] text-neutral-400">{profile.country}</p>
+            {(profile.city || profile.country || profile.timezone) && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                {(profile.city || profile.country) && (
+                  <span className="flex items-center gap-1 text-[12px] text-neutral-400">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2"/>
+                      <circle cx="6" cy="4.5" r="1.2" stroke="currentColor" strokeWidth="1.1"/>
+                    </svg>
+                    {formatLocation(profile.city, profile.country) ?? profile.country}
+                  </span>
+                )}
+                {profile.timezone && profile.timezone !== "UTC" && (
+                  <span className="flex items-center gap-1 text-[12px] text-neutral-400">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M6 3.5V6l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                    {formatTimezoneDisplay(profile.timezone)}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
