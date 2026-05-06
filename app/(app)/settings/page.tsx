@@ -247,10 +247,17 @@ export default function SettingsPage() {
       )}
       {googleParam === "error" && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-          Could not connect Google Calendar — please try again.
-          {searchParams.get("reason") && (
-            <span className="ml-1 text-red-500">({searchParams.get("reason")})</span>
-          )}
+          {(() => {
+            const reason = searchParams.get("reason");
+            const messages: Record<string, string> = {
+              access_denied:         "You cancelled the Google sign-in. Click Connect to try again.",
+              invalid_state:         "Session expired during sign-in. Please try again.",
+              state_decode_failed:   "Sign-in session expired. Please try again.",
+              token_exchange_failed: "Unable to connect Google Calendar. Please try again or contact support.",
+              missing_params:        "Something went wrong with the sign-in flow. Please try again.",
+            };
+            return messages[reason ?? ""] ?? "Unable to connect Google Calendar — please try again.";
+          })()}
         </div>
       )}
 
@@ -263,10 +270,20 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <p className="text-[12px] text-neutral-500">
-                Helps seekers find mentors in their region and schedule sessions across timezones.
-                City and country are optional — only your timezone is shown publicly.
-              </p>
+              <div className="flex flex-col gap-1">
+                <p className="text-[12px] text-neutral-500">
+                  Helps seekers find mentors in their region and schedule sessions across timezones.
+                  City and country are optional — only your timezone is shown publicly.
+                </p>
+                <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-600">
+                  <svg width="13" height="13" viewBox="0 0 12 12" fill="none" className="mt-0.5 shrink-0" aria-hidden="true">
+                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M6 3.5V6l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                  All meeting times are automatically shown in each person&apos;s local timezone —
+                  you never need to calculate conversions manually.
+                </div>
+              </div>
 
               {/* Country */}
               <div className="flex flex-col gap-1.5">

@@ -35,8 +35,9 @@ export interface AvailabilitySlot {
   id: string;
   userId: string;
   date: string;       // ISO string — UTC midnight of the slot date
-  startTime: string;
-  endTime: string;
+  startTime: string;  // "HH:MM" in the auror's local timezone
+  endTime: string;    // "HH:MM" in the auror's local timezone
+  timezone: string;   // IANA timezone of the auror at slot creation
   validFrom: string;
   validTo: string;
   createdAt: string;
@@ -98,9 +99,9 @@ export interface Review {
 }
 
 export interface BookingWithDetails extends Booking {
-  auror?: { profile: { name: string } | null } | null;
-  seeker?: { profile: { name: string } | null } | null;
-  availabilitySlot: Pick<AvailabilitySlot, "date" | "startTime" | "endTime">;
+  auror?: { profile: { name: string; timezone?: string | null } | null } | null;
+  seeker?: { profile: { name: string; timezone?: string | null } | null } | null;
+  availabilitySlot: Pick<AvailabilitySlot, "date" | "startTime" | "endTime" | "timezone">;
   request?: { questions: string[]; status: string } | null;
   review?: { rating: number; takeaways: string[]; review: string | null } | null;
 }

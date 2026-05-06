@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { buildAddToGCalUrl } from "@/lib/googleCalendar";
+import { getTimezoneAbbr, formatDateInTz } from "@/lib/timezone";
 import { isValidMeetingUrl } from "@/lib/meeting";
 import type { BookingWithDetails, UserRole } from "@/types";
 
@@ -44,20 +45,15 @@ function fmtWeekRange(monday: Date) {
   return `${monday.toLocaleDateString("en-US", opts)} – ${sunday.toLocaleDateString("en-US", opts)}`;
 }
 
+// Use the authoritative UTC timestamp stored at booking creation time.
+// Older bookings stored a "naive UTC" (treated local time as UTC); new bookings
+// store the correct UTC via slotLocalToUTC in the accept handler.
 function scheduledAt(bk: BookingWithDetails): Date {
-  const slot = bk.availabilitySlot;
-  const [h, m] = slot.startTime.split(":").map(Number);
-  const d = new Date(slot.date);
-  d.setUTCHours(h, m, 0, 0);
-  return d;
+  return new Date(bk.scheduledAt);
 }
 
 function scheduledEnd(bk: BookingWithDetails): Date {
-  const slot = bk.availabilitySlot;
-  const [h, m] = slot.endTime.split(":").map(Number);
-  const d = new Date(slot.date);
-  d.setUTCHours(h, m, 0, 0);
-  return d;
+  return new Date(new Date(bk.scheduledAt).getTime() + bk.duration * 60_000);
 }
 
 function addToGCalUrl(bk: BookingWithDetails, perspective: UserRole): string {
@@ -105,7 +101,7 @@ function SessionPill({
         {booking.sessionType === "coffee" ? "☕" : "🎯"} {other}
       </p>
       <p className="mt-0.5 text-[10px] leading-tight text-neutral-400">
-        {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })}
+        {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
       </p>
     </div>
   );
@@ -116,13 +112,26 @@ function SessionPill({
 function SessionRow({
   booking,
   perspective,
+  viewerTz = "UTC",
 }: {
   booking: BookingWithDetails;
   perspective: UserRole;
+  viewerTz?: string;
 }) {
   const other = perspective === "SEEKER"
     ? (booking.auror?.profile?.name  ?? "Auror")
     : (booking.seeker?.profile?.name ?? "Seeker");
+
+  // Counterpart timezone for showing "their time"
+  const otherTz = perspective === "SEEKER"
+    ? (booking.auror?.profile?.timezone ?? null)
+    : (booking.seeker?.profile?.timezone ?? null);
+  const otherTzAbbr = otherTz ? getTimezoneAbbr(otherTz) : null;
+  const viewerTzAbbr = getTimezoneAbbr(viewerTz);
+
+  const start = scheduledAt(booking);
+  const end   = scheduledEnd(booking);
+
   const type  = booking.sessionType === "coffee" ? "☕ Coffee Chat" : "🎯 Mock Interview";
   const hasLink = isValidMeetingUrl(booking.meetingLink);
 
@@ -137,11 +146,23 @@ function SessionRow({
             {other}
           </p>
           <p className="mt-0.5 text-[12px] text-neutral-400">
-            {fmtDay(new Date(booking.availabilitySlot.date))}
+            {fmtDay(start)}
             {" · "}
-            {booking.availabilitySlot.startTime}–{booking.availabilitySlot.endTime} UTC
+            {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            {" – "}
+            {end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            {viewerTzAbbr && <span className="ml-1 font-medium text-neutral-500">{viewerTzAbbr}</span>}
             {" · "}{booking.duration} min
           </p>
+          {otherTz && otherTz !== viewerTz && (
+            <p className="mt-0.5 text-[11px] text-neutral-400">
+              {other}&apos;s time:{" "}
+              {formatDateInTz(start, otherTz)}
+              {" – "}
+              {formatDateInTz(end, otherTz)}
+              {otherTzAbbr && <span className="ml-1 text-neutral-400">{otherTzAbbr}</span>}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
@@ -220,6 +241,11 @@ export default function CalendarPage() {
   const [loadState, setLoadState] = useState<"loading" | "ready">("loading");
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()));
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
+  const [viewerTz, setViewerTz]   = useState("UTC");
+
+  useEffect(() => {
+    setViewerTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   useEffect(() => {
     const id = localStorage.getItem("userId");
@@ -414,7 +440,7 @@ export default function CalendarPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {upcomingSessions.map((bk) => (
-              <SessionRow key={bk.id} booking={bk} perspective={role ?? "SEEKER"} />
+              <SessionRow key={bk.id} booking={bk} perspective={role ?? "SEEKER"} viewerTz={viewerTz} />
             ))}
           </div>
         )}

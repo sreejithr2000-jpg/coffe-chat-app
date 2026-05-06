@@ -13,7 +13,7 @@ import {
   DURATION_OPTIONS,
 } from "@/lib/availability";
 import { cn } from "@/lib/utils";
-import { formatTimezoneDisplay, getUTCOffsetHours } from "@/lib/timezone";
+import { formatTimezoneDisplay, getUTCOffsetHours, formatSlotTimeInTz, getTimezoneAbbr } from "@/lib/timezone";
 import type { User, EnrichedSlot } from "@/types";
 
 interface AurorStats {
@@ -66,6 +66,12 @@ export default function BookingPage() {
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [successSlotId, setSuccessSlotId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate]   = useState<string | null>(null); // "YYYY-MM-DD"
+  const [viewerTz, setViewerTz]           = useState<string>("UTC");
+
+  // Detect viewer's timezone client-side (safe for SSR)
+  useEffect(() => {
+    setViewerTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
@@ -301,6 +307,8 @@ export default function BookingPage() {
               selectedSlotId={selectedSlotId}
               successSlotId={successSlotId}
               aurorName={profile?.name ?? "Auror"}
+              aurorTimezone={profile?.timezone ?? "UTC"}
+              viewerTz={viewerTz}
               onToggle={toggleSlot}
               onSubmit={handleSubmit}
             />
@@ -312,6 +320,8 @@ export default function BookingPage() {
               selectedSlotId={selectedSlotId}
               successSlotId={successSlotId}
               aurorName={profile?.name ?? "Auror"}
+              aurorTimezone={profile?.timezone ?? "UTC"}
+              viewerTz={viewerTz}
               onToggle={toggleSlot}
               onSubmit={handleSubmit}
             />
@@ -467,6 +477,8 @@ function SlotWeekGroup({
   selectedSlotId,
   successSlotId,
   aurorName,
+  aurorTimezone,
+  viewerTz,
   onToggle,
   onSubmit,
 }: {
@@ -475,9 +487,13 @@ function SlotWeekGroup({
   selectedSlotId: string | null;
   successSlotId: string | null;
   aurorName: string;
+  aurorTimezone: string;
+  viewerTz: string;
   onToggle: (id: string) => void;
   onSubmit: (slot: EnrichedSlot, data: { sessionType: "coffee" | "mock"; duration: number; questions: string[] }) => Promise<void>;
 }) {
+  const showViewerTime = viewerTz && viewerTz !== aurorTimezone;
+  const viewerAbbr = showViewerTime ? getTimezoneAbbr(viewerTz) : "";
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">{label}</p>
@@ -502,12 +518,23 @@ function SlotWeekGroup({
               {/* Left: dot + datetime + status badge */}
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", cfg.dot)} />
-                <span className={cn(
-                  "text-[13px] font-medium",
-                  slot.slotStatus === "available" ? "text-neutral-800" : "text-neutral-500"
-                )}>
-                  {formatSlotDate(slot)}
-                </span>
+                <div className="flex min-w-0 flex-col">
+                  <span className={cn(
+                    "text-[13px] font-medium",
+                    slot.slotStatus === "available" ? "text-neutral-800" : "text-neutral-500"
+                  )}>
+                    {formatSlotDate(slot)}
+                  </span>
+                  {showViewerTime && (
+                    <span className="text-[11px] text-neutral-400">
+                      {formatSlotTimeInTz(slot.date, slot.startTime, slot.timezone ?? aurorTimezone, viewerTz)}
+                      {" – "}
+                      {formatSlotTimeInTz(slot.date, slot.endTime, slot.timezone ?? aurorTimezone, viewerTz)}
+                      {viewerAbbr && ` ${viewerAbbr}`}
+                      {" (your time)"}
+                    </span>
+                  )}
+                </div>
                 <span className={cn(
                   "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                   cfg.badge
@@ -849,10 +876,10 @@ function TimezoneContextBanner({ aurorTimezone }: { aurorTimezone: string }) {
       </svg>
       <div className="flex flex-col gap-0.5">
         <p className="text-[12px] font-medium text-blue-700">
-          Auror is in {aurorTzLabel} — {diffLabel}
+          Times shown in Auror&apos;s timezone ({aurorTzLabel}) — {diffLabel}
         </p>
         <p className="text-[11px] text-blue-500">
-          Times above are in the Auror&apos;s timezone. Your timezone: {myTzLabel}
+          Your timezone: {myTzLabel}. Your local equivalent is shown below each slot.
         </p>
       </div>
     </div>
