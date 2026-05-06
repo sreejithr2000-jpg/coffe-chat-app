@@ -44,20 +44,15 @@ function fmtWeekRange(monday: Date) {
   return `${monday.toLocaleDateString("en-US", opts)} – ${sunday.toLocaleDateString("en-US", opts)}`;
 }
 
+// Use the authoritative UTC timestamp stored at booking creation time.
+// Older bookings stored a "naive UTC" (treated local time as UTC); new bookings
+// store the correct UTC via slotLocalToUTC in the accept handler.
 function scheduledAt(bk: BookingWithDetails): Date {
-  const slot = bk.availabilitySlot;
-  const [h, m] = slot.startTime.split(":").map(Number);
-  const d = new Date(slot.date);
-  d.setUTCHours(h, m, 0, 0);
-  return d;
+  return new Date(bk.scheduledAt);
 }
 
 function scheduledEnd(bk: BookingWithDetails): Date {
-  const slot = bk.availabilitySlot;
-  const [h, m] = slot.endTime.split(":").map(Number);
-  const d = new Date(slot.date);
-  d.setUTCHours(h, m, 0, 0);
-  return d;
+  return new Date(new Date(bk.scheduledAt).getTime() + bk.duration * 60_000);
 }
 
 function addToGCalUrl(bk: BookingWithDetails, perspective: UserRole): string {
@@ -105,7 +100,7 @@ function SessionPill({
         {booking.sessionType === "coffee" ? "☕" : "🎯"} {other}
       </p>
       <p className="mt-0.5 text-[10px] leading-tight text-neutral-400">
-        {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })}
+        {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
       </p>
     </div>
   );
@@ -137,9 +132,11 @@ function SessionRow({
             {other}
           </p>
           <p className="mt-0.5 text-[12px] text-neutral-400">
-            {fmtDay(new Date(booking.availabilitySlot.date))}
+            {fmtDay(scheduledAt(booking))}
             {" · "}
-            {booking.availabilitySlot.startTime}–{booking.availabilitySlot.endTime} UTC
+            {scheduledAt(booking).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            {" – "}
+            {scheduledEnd(booking).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             {" · "}{booking.duration} min
           </p>
         </div>

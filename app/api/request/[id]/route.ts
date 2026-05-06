@@ -4,6 +4,7 @@ import { generateMeetingLink, isValidMeetingUrl } from "@/lib/meeting";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email";
 import { getValidToken } from "@/lib/googleAuth";
+import { slotLocalToUTC } from "@/lib/timezone";
 import { createCalendarEvent } from "@/lib/googleCalendar";
 
 export async function GET(
@@ -121,13 +122,12 @@ export async function PATCH(
     if (newStatus === "accepted") {
       const slot = updated.availabilitySlot;
 
-      // Derive scheduledAt from the slot's specific date + start time (UTC)
-      const [sh, sm] = slot.startTime.split(":").map(Number);
-      const [eh, em] = slot.endTime.split(":").map(Number);
-      const scheduledAt = new Date(slot.date);
-      scheduledAt.setUTCHours(sh, sm, 0, 0);
-      const scheduledEnd = new Date(slot.date);
-      scheduledEnd.setUTCHours(eh, em, 0, 0);
+      // Convert slot local times to UTC using the timezone stored on the slot.
+      // slot.timezone holds the auror's IANA timezone at the time they created it.
+      // Legacy slots default to "UTC" so behaviour is unchanged for old data.
+      const slotTz = (slot as typeof slot & { timezone?: string }).timezone ?? "UTC";
+      const scheduledAt  = slotLocalToUTC(slot.date, slot.startTime, slotTz);
+      const scheduledEnd = slotLocalToUTC(slot.date, slot.endTime,   slotTz);
 
       // Default to internal meeting link; upgrade to Google Meet if Auror has token
       let meetingLink = generateMeetingLink(id);

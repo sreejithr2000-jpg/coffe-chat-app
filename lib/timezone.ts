@@ -98,6 +98,71 @@ export function formatTimezoneDisplay(iana: string): string {
   }
 }
 
+/**
+ * Converts a slot's "HH:MM" time string (stored in the auror's IANA timezone)
+ * to a true UTC Date. Required because the DB stores times as local strings,
+ * not offsets — so naive setUTCHours() would treat them as UTC incorrectly.
+ *
+ * Algorithm: start with naiveUTC = Date.UTC(date, h, m), then measure the
+ * timezone's offset at that moment via Intl and correct by that offset.
+ */
+export function slotLocalToUTC(slotDate: Date, timeStr: string, timezone: string): Date {
+  const [h, m] = timeStr.split(":").map(Number);
+  const dateStr = slotDate.toISOString().substring(0, 10); // "YYYY-MM-DD"
+  const [y, mo, d] = dateStr.split("-").map(Number);
+
+  const naiveUTC = new Date(Date.UTC(y, mo - 1, d, h, m, 0));
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(naiveUTC);
+  const rawH  = Number(parts.find((p) => p.type === "hour")?.value ?? h);
+  const tzH   = rawH % 24; // guard against "24" edge case for midnight
+  const tzM   = Number(parts.find((p) => p.type === "minute")?.value ?? m);
+
+  // How many ms the target timezone is ahead of UTC at this naiveUTC moment
+  const offsetMs = ((tzH - h) * 60 + (tzM - m)) * 60_000;
+  return new Date(naiveUTC.getTime() - offsetMs);
+}
+
+/**
+ * Formats a slot's start or end time (stored in `fromTz`) as it would appear
+ * in `toTz`. Safe to call on both server and client.
+ * Returns a string like "9:30 PM".
+ */
+export function formatSlotTimeInTz(
+  slotDate: Date | string,
+  timeStr: string,
+  fromTz: string,
+  toTz: string
+): string {
+  const date = typeof slotDate === "string" ? new Date(slotDate) : slotDate;
+  const utc  = slotLocalToUTC(date, timeStr, fromTz);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: toTz,
+    hour:     "numeric",
+    minute:   "2-digit",
+    hour12:   true,
+  }).format(utc);
+}
+
+/** Returns the short timezone abbreviation for an IANA timezone, e.g. "IST", "PST". */
+export function getTimezoneAbbr(iana: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: iana,
+      timeZoneName: "short",
+    }).formatToParts(new Date());
+    return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function getLocalTime(iana: string): string {
   if (!iana) return "";
   try {

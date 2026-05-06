@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const redirectUri = `${appUrl}/api/auth/google/callback`;
+    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin}/api/auth/google/callback`;
     const tokens   = await exchangeCodeForTokens(code, redirectUri);
     const userInfo = await getGoogleUserInfo(tokens.access_token);
     const expiry   = new Date(Date.now() + tokens.expires_in * 1000);

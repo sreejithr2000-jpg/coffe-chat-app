@@ -247,10 +247,17 @@ export default function SettingsPage() {
       )}
       {googleParam === "error" && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-          Could not connect Google Calendar — please try again.
-          {searchParams.get("reason") && (
-            <span className="ml-1 text-red-500">({searchParams.get("reason")})</span>
-          )}
+          {(() => {
+            const reason = searchParams.get("reason");
+            const messages: Record<string, string> = {
+              access_denied:         "You cancelled the Google sign-in. Click Connect to try again.",
+              invalid_state:         "Session expired during sign-in. Please try again.",
+              state_decode_failed:   "Sign-in session expired. Please try again.",
+              token_exchange_failed: "Unable to connect Google Calendar. Please try again or contact support.",
+              missing_params:        "Something went wrong with the sign-in flow. Please try again.",
+            };
+            return messages[reason ?? ""] ?? "Unable to connect Google Calendar — please try again.";
+          })()}
         </div>
       )}
 

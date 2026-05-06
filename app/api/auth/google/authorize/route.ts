@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
   }
 
   const state = Buffer.from(JSON.stringify({ userId, ts: Date.now() })).toString("base64url");
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  // Prefer explicit env var; fall back to the request origin so local dev works
+  // without NEXT_PUBLIC_APP_URL set. Google Console must register this URI.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
   const redirectUri = `${appUrl}/api/auth/google/callback`;
   const url = getGoogleOAuthUrl(redirectUri, state);
 

@@ -49,8 +49,15 @@ export async function POST(request: NextRequest) {
     const validTo = new Date(slotDate);
     validTo.setUTCHours(23, 59, 59, 999);
 
+    // Record the auror's IANA timezone so booking creation can convert to UTC correctly
+    const aurorProfile = await prisma.profile.findUnique({
+      where:  { userId },
+      select: { timezone: true },
+    });
+    const timezone = aurorProfile?.timezone ?? "UTC";
+
     const slot = await prisma.availabilitySlot.create({
-      data: { userId, date: slotDate, startTime, endTime, validTo },
+      data: { userId, date: slotDate, startTime, endTime, validTo, timezone },
     });
 
     // Notify seekers watching this Auror — deduplicate: skip if an unread NEW_SLOT

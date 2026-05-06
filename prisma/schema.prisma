@@ -118,8 +118,9 @@ model AvailabilitySlot {
   id        String   @id @default(cuid())
   userId    String
   date      DateTime // specific calendar date (UTC midnight)
-  startTime String   // "HH:MM" 24hr
-  endTime   String   // "HH:MM" 24hr
+  startTime String   // "HH:MM" 24hr in auror's local timezone
+  endTime   String   // "HH:MM" 24hr in auror's local timezone
+  timezone  String   @default("UTC") // IANA timezone of the auror at creation time
   validFrom DateTime @default(now())
   validTo   DateTime // end of slot date; slots past this are hidden
   createdAt DateTime @default(now())

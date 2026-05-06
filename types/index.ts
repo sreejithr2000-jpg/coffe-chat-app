@@ -35,8 +35,9 @@ export interface AvailabilitySlot {
   id: string;
   userId: string;
   date: string;       // ISO string — UTC midnight of the slot date
-  startTime: string;
-  endTime: string;
+  startTime: string;  // "HH:MM" in the auror's local timezone
+  endTime: string;    // "HH:MM" in the auror's local timezone
+  timezone: string;   // IANA timezone of the auror at slot creation
   validFrom: string;
   validTo: string;
   createdAt: string;
