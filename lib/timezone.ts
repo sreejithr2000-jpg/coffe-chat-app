@@ -150,6 +150,42 @@ export function formatSlotTimeInTz(
   }).format(utc);
 }
 
+/**
+ * Formats a UTC Date in a specific IANA timezone as a time string (e.g. "9:30 PM").
+ * Safe for both server and client.
+ */
+export function formatDateInTz(utcDate: Date, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour:     "numeric",
+      minute:   "2-digit",
+      hour12:   true,
+    }).format(utcDate);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Returns a human-readable label for the timezone difference between two IANA timezones.
+ * Returns null when the gap is less than 30 minutes.
+ * Examples: "5.5 hrs ahead", "8 hrs behind", "same timezone"
+ */
+export function getTzDiffLabel(fromTz: string, toTz: string): string | null {
+  try {
+    const diff = getUTCOffsetHours(fromTz) - getUTCOffsetHours(toTz);
+    const abs  = Math.abs(diff);
+    if (abs < 0.5) return null;
+    const whole = Math.floor(abs);
+    const half  = abs % 1 >= 0.4 && abs % 1 <= 0.6;
+    const label = half ? `${whole}.5 hrs` : `${Math.round(abs)} hr${Math.round(abs) !== 1 ? "s" : ""}`;
+    return diff > 0 ? `${label} ahead` : `${label} behind`;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns the short timezone abbreviation for an IANA timezone, e.g. "IST", "PST". */
 export function getTimezoneAbbr(iana: string): string {
   try {

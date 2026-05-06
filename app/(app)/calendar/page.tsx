@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { buildAddToGCalUrl } from "@/lib/googleCalendar";
+import { getTimezoneAbbr, formatDateInTz } from "@/lib/timezone";
 import { isValidMeetingUrl } from "@/lib/meeting";
 import type { BookingWithDetails, UserRole } from "@/types";
 
@@ -111,13 +112,26 @@ function SessionPill({
 function SessionRow({
   booking,
   perspective,
+  viewerTz = "UTC",
 }: {
   booking: BookingWithDetails;
   perspective: UserRole;
+  viewerTz?: string;
 }) {
   const other = perspective === "SEEKER"
     ? (booking.auror?.profile?.name  ?? "Auror")
     : (booking.seeker?.profile?.name ?? "Seeker");
+
+  // Counterpart timezone for showing "their time"
+  const otherTz = perspective === "SEEKER"
+    ? (booking.auror?.profile?.timezone ?? null)
+    : (booking.seeker?.profile?.timezone ?? null);
+  const otherTzAbbr = otherTz ? getTimezoneAbbr(otherTz) : null;
+  const viewerTzAbbr = getTimezoneAbbr(viewerTz);
+
+  const start = scheduledAt(booking);
+  const end   = scheduledEnd(booking);
+
   const type  = booking.sessionType === "coffee" ? "☕ Coffee Chat" : "🎯 Mock Interview";
   const hasLink = isValidMeetingUrl(booking.meetingLink);
 
@@ -132,13 +146,23 @@ function SessionRow({
             {other}
           </p>
           <p className="mt-0.5 text-[12px] text-neutral-400">
-            {fmtDay(scheduledAt(booking))}
+            {fmtDay(start)}
             {" · "}
-            {scheduledAt(booking).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             {" – "}
-            {scheduledEnd(booking).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            {end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            {viewerTzAbbr && <span className="ml-1 font-medium text-neutral-500">{viewerTzAbbr}</span>}
             {" · "}{booking.duration} min
           </p>
+          {otherTz && otherTz !== viewerTz && (
+            <p className="mt-0.5 text-[11px] text-neutral-400">
+              {other}&apos;s time:{" "}
+              {formatDateInTz(start, otherTz)}
+              {" – "}
+              {formatDateInTz(end, otherTz)}
+              {otherTzAbbr && <span className="ml-1 text-neutral-400">{otherTzAbbr}</span>}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
@@ -217,6 +241,11 @@ export default function CalendarPage() {
   const [loadState, setLoadState] = useState<"loading" | "ready">("loading");
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()));
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
+  const [viewerTz, setViewerTz]   = useState("UTC");
+
+  useEffect(() => {
+    setViewerTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   useEffect(() => {
     const id = localStorage.getItem("userId");
@@ -411,7 +440,7 @@ export default function CalendarPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {upcomingSessions.map((bk) => (
-              <SessionRow key={bk.id} booking={bk} perspective={role ?? "SEEKER"} />
+              <SessionRow key={bk.id} booking={bk} perspective={role ?? "SEEKER"} viewerTz={viewerTz} />
             ))}
           </div>
         )}

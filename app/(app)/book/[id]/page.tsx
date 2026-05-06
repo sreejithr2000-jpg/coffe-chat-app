@@ -876,10 +876,10 @@ function TimezoneContextBanner({ aurorTimezone }: { aurorTimezone: string }) {
       </svg>
       <div className="flex flex-col gap-0.5">
         <p className="text-[12px] font-medium text-blue-700">
-          Auror is in {aurorTzLabel} — {diffLabel}
+          Times shown in Auror&apos;s timezone ({aurorTzLabel}) — {diffLabel}
         </p>
         <p className="text-[11px] text-blue-500">
-          Times above are in the Auror&apos;s timezone. Your timezone: {myTzLabel}
+          Your timezone: {myTzLabel}. Your local equivalent is shown below each slot.
         </p>
       </div>
     </div>

@@ -270,10 +270,20 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <p className="text-[12px] text-neutral-500">
-                Helps seekers find mentors in their region and schedule sessions across timezones.
-                City and country are optional — only your timezone is shown publicly.
-              </p>
+              <div className="flex flex-col gap-1">
+                <p className="text-[12px] text-neutral-500">
+                  Helps seekers find mentors in their region and schedule sessions across timezones.
+                  City and country are optional — only your timezone is shown publicly.
+                </p>
+                <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-600">
+                  <svg width="13" height="13" viewBox="0 0 12 12" fill="none" className="mt-0.5 shrink-0" aria-hidden="true">
+                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M6 3.5V6l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                  All meeting times are automatically shown in each person&apos;s local timezone —
+                  you never need to calculate conversions manually.
+                </div>
+              </div>
 
               {/* Country */}
               <div className="flex flex-col gap-1.5">

@@ -10,6 +10,8 @@ import {
   getUTCOffsetHours,
   formatTimezoneDisplay,
   formatLocation,
+  getLocalTime,
+  getTzDiffLabel,
 } from "@/lib/timezone";
 import type { Profile, Track } from "@/types";
 
@@ -405,6 +407,20 @@ function AurorCard({
     ? isSameTimezone(profile.timezone, myTimezone)
     : false;
 
+  // Live local time for this auror (updates every minute)
+  const [aurorLocalTime, setAurorLocalTime] = useState("");
+  useEffect(() => {
+    if (!profile?.timezone) return;
+    setAurorLocalTime(getLocalTime(profile.timezone));
+    const t = setInterval(() => setAurorLocalTime(getLocalTime(profile.timezone!)), 60_000);
+    return () => clearInterval(t);
+  }, [profile?.timezone]);
+
+  // Timezone difference label (only shown when timezones differ)
+  const diffLabel = !sameZone && myTimezone && profile?.timezone
+    ? getTzDiffLabel(profile.timezone, myTimezone)
+    : null;
+
   return (
     <Card padding="md" className="flex flex-col gap-3">
       {/* Identity */}
@@ -429,20 +445,32 @@ function AurorCard({
         </div>
       </div>
 
-      {/* Location + timezone */}
+      {/* Location + timezone + live local time */}
       {(location || tzDisplay) && (
-        <div className="flex items-center gap-1.5 text-[11px] text-neutral-400">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="shrink-0">
-            <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2"/>
-            <circle cx="6" cy="4.5" r="1.2" stroke="currentColor" strokeWidth="1.1"/>
-          </svg>
-          {location && <span>{location}</span>}
-          {location && tzDisplay && <span className="text-neutral-300">·</span>}
-          {tzDisplay && (
-            <span className={cn(sameZone && "font-medium text-primary-600")}>
-              {tzDisplay}
-              {sameZone && " · Same timezone"}
-            </span>
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-400">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="shrink-0">
+              <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2"/>
+              <circle cx="6" cy="4.5" r="1.2" stroke="currentColor" strokeWidth="1.1"/>
+            </svg>
+            {location && <span>{location}</span>}
+            {location && tzDisplay && <span className="text-neutral-300">·</span>}
+            {tzDisplay && (
+              <span className={cn(sameZone && "font-medium text-primary-600")}>
+                {tzDisplay}
+                {sameZone && " · Same timezone"}
+              </span>
+            )}
+            {aurorLocalTime && (
+              <span className="rounded-full border border-neutral-100 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">
+                {aurorLocalTime}
+              </span>
+            )}
+          </div>
+          {diffLabel && !sameZone && (
+            <p className="ml-3.5 text-[10px] text-neutral-400">
+              You&apos;re {diffLabel}
+            </p>
           )}
         </div>
       )}

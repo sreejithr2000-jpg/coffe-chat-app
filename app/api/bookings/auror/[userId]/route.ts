@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 
 const INCLUDE = {
   seeker: {
-    select: { profile: { select: { name: true } } },
+    select: { profile: { select: { name: true, timezone: true } } },
   },
   availabilitySlot: {
-    select: { date: true, startTime: true, endTime: true },
+    select: { date: true, startTime: true, endTime: true, timezone: true },
   },
   request: {
     select: { questions: true, status: true },

@@ -7,7 +7,7 @@ import { Card, Button, Badge } from "@/components/ui";
 import { BackButton } from "@/components/BackButton";
 import { TRACK_LABELS } from "@/lib/tracks";
 import { cn } from "@/lib/utils";
-import { formatLocation, formatTimezoneDisplay, getLocalTime } from "@/lib/timezone";
+import { formatLocation, formatTimezoneDisplay, getLocalTime, getTimezoneAbbr, getTzDiffLabel } from "@/lib/timezone";
 import type { User, UserRole, ExperienceEntry, EducationEntry } from "@/types";
 
 function NotifyMeButton({ aurorId, seekerId }: { aurorId: string; seekerId: string }) {
@@ -78,6 +78,7 @@ export default function AurorProfilePage() {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready">("loading");
   const [localTime, setLocalTime] = useState("");
+  const [viewerTz, setViewerTz]   = useState("");
 
   useEffect(() => {
     const id = localStorage.getItem("userId");
@@ -109,7 +110,12 @@ export default function AurorProfilePage() {
       .catch(() => setLoadState("ready"));
   }, [aurorId]);
 
-  // Live local time — updates every 30s
+  // Viewer's browser timezone (client-side only)
+  useEffect(() => {
+    setViewerTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
+
+  // Live local time for auror — updates every 30s
   useEffect(() => {
     if (!auror?.profile?.timezone) return;
     const tz = auror.profile.timezone;
@@ -395,14 +401,47 @@ export default function AurorProfilePage() {
 
       {/* ── Book CTA (seeker) / Login prompt ──────────────────────────────── */}
       {isSeeker ? (
-        <div className="rounded-xl border border-primary-100 bg-primary-50 px-5 py-4 text-center">
-          <p className="text-[13px] font-medium text-primary-700">
-            Ready to connect with {profile?.name?.split(" ")[0] ?? "this Auror"}?
-          </p>
-          <Link href={`/book/${aurorId}`} className="mt-3 inline-block">
-            <Button>Book a Session</Button>
-          </Link>
-        </div>
+        <>
+          {/* Timezone awareness panel — shown when auror has a non-UTC timezone */}
+          {profile?.timezone && profile.timezone !== "UTC" && viewerTz && viewerTz !== profile.timezone && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-blue-400">
+                Timezone Info
+              </p>
+              <div className="flex flex-col gap-1.5 text-[12px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-500">
+                    {profile.name?.split(" ")[0] ?? "Auror"}&apos;s timezone
+                  </span>
+                  <span className="font-semibold text-neutral-700">
+                    {getTimezoneAbbr(profile.timezone)} · {formatTimezoneDisplay(profile.timezone)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-500">Your timezone</span>
+                  <span className="font-semibold text-neutral-700">
+                    {getTimezoneAbbr(viewerTz)} · {formatTimezoneDisplay(viewerTz)}
+                  </span>
+                </div>
+                {getTzDiffLabel(profile.timezone, viewerTz) && (
+                  <p className="mt-1 text-[11px] text-blue-500">
+                    {profile.name?.split(" ")[0] ?? "Auror"} is{" "}
+                    {getTzDiffLabel(profile.timezone, viewerTz)} of you.
+                    Meeting times will automatically adjust for your timezone.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="rounded-xl border border-primary-100 bg-primary-50 px-5 py-4 text-center">
+            <p className="text-[13px] font-medium text-primary-700">
+              Ready to connect with {profile?.name?.split(" ")[0] ?? "this Auror"}?
+            </p>
+            <Link href={`/book/${aurorId}`} className="mt-3 inline-block">
+              <Button>Book a Session</Button>
+            </Link>
+          </div>
+        </>
       ) : !currentUserId ? (
         <p className="text-center text-sm text-neutral-500">
           <Link href="/login" className="font-medium text-primary-600 hover:underline">

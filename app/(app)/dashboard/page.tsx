@@ -16,6 +16,7 @@ import {
   getMilestoneMessage,
   getRoleNudge,
 } from "@/lib/profileCompletion";
+import { getTimezoneAbbr, formatDateInTz } from "@/lib/timezone";
 import type {
   User,
   Profile,
@@ -40,6 +41,11 @@ export default function DashboardPage() {
   const [hasMoreCompleted, setHasMoreCompleted] = useState(false);
   const [completedSkip, setCompletedSkip] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [viewerTz, setViewerTz] = useState("UTC");
+
+  useEffect(() => {
+    setViewerTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
   const [usage, setUsage] = useState<{
     weeklyUsed: number;
     weeklyLimit: number;
@@ -298,6 +304,7 @@ export default function DashboardPage() {
                         perspective="seeker"
                         seekerId={user!.id}
                         seekerName={user?.profile?.name ?? undefined}
+                        viewerTz={viewerTz}
                         onUpdate={(updated) =>
                           setSeekerBookings((prev) =>
                             prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
@@ -417,7 +424,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {upcomingAurorSessions.map((bk) => (
-                    <BookingRow key={bk.id} booking={bk} perspective="auror" />
+                    <BookingRow key={bk.id} booking={bk} perspective="auror" viewerTz={viewerTz} />
                   ))}
                 </div>
               )}
@@ -1180,12 +1187,14 @@ function BookingRow({
   perspective,
   seekerId,
   seekerName,
+  viewerTz = "UTC",
   onUpdate,
 }: {
   booking: BookingWithDetails;
   perspective: "seeker" | "auror";
   seekerId?: string;
   seekerName?: string;
+  viewerTz?: string;
   onUpdate?: (updated: Partial<BookingWithDetails> & { id: string }) => void;
 }): React.ReactElement {
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -1195,6 +1204,15 @@ function BookingRow({
     perspective === "seeker"
       ? (booking.auror?.profile?.name ?? "Unknown Auror")
       : (booking.seeker?.profile?.name ?? "Unknown Seeker");
+
+  // Counterpart timezone for the "their time" secondary line
+  const otherTz = perspective === "seeker"
+    ? (booking.auror?.profile?.timezone ?? null)
+    : (booking.seeker?.profile?.timezone ?? null);
+  const viewerTzAbbr = getTimezoneAbbr(viewerTz);
+  const otherTzAbbr  = otherTz ? getTimezoneAbbr(otherTz) : null;
+  const sessionStart = new Date(scheduledAt);
+  const sessionEnd   = new Date(sessionStart.getTime() + (booking.duration ?? 30) * 60_000);
 
   // Unread detection
   const hasUnread = (() => {
@@ -1225,7 +1243,17 @@ function BookingRow({
           <ProfileHoverPreview userId={perspective === "seeker" ? booking.aurorId : booking.seekerId}>
             <p className="text-[13px] font-semibold text-neutral-900 hover:text-primary-600 cursor-pointer transition-colors">{name}</p>
           </ProfileHoverPreview>
-          <p className="text-[12px] text-neutral-500">{formatScheduledDate(scheduledAt)}</p>
+          <p className="text-[12px] text-neutral-500">
+            {formatScheduledDate(scheduledAt)}
+            {viewerTzAbbr && <span className="ml-1 font-medium">{viewerTzAbbr}</span>}
+          </p>
+          {otherTz && otherTz !== viewerTz && (
+            <p className="text-[11px] text-neutral-400">
+              {name.split(" ")[0]}&apos;s time:{" "}
+              {formatDateInTz(sessionStart, otherTz)}
+              {otherTzAbbr && <> {otherTzAbbr}</>}
+            </p>
+          )}
           {booking.sessionType && (
             <p className="text-[11px] text-neutral-400">
               {booking.sessionType === "coffee" ? "☕ Coffee Chat" : "🎯 Mock Interview"}

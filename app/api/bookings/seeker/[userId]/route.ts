@@ -5,10 +5,10 @@ const COMPLETED_PAGE_SIZE = 10;
 
 const INCLUDE = {
   auror: {
-    select: { profile: { select: { name: true } } },
+    select: { profile: { select: { name: true, timezone: true } } },
   },
   availabilitySlot: {
-    select: { date: true, startTime: true, endTime: true },
+    select: { date: true, startTime: true, endTime: true, timezone: true },
   },
   review: {
     select: { rating: true, takeaways: true, review: true },
